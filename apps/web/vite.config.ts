@@ -2,14 +2,16 @@ import { defineConfig, type Plugin } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// Страница ничего не загружает со сторонних адресов и никуда не отправляет текст.
+// Страница ничего не загружает со сторонних адресов. Текст уходит наружу только
+// при оценке LLM и только к провайдерам из src/lib/llm/providers.ts (или на localhost).
 // 'wasm-unsafe-eval' нужен только для компиляции WebAssembly.
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self'",
   "img-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://api.anthropic.com https://api.openai.com https://openrouter.ai " +
+    'http://localhost:* http://127.0.0.1:*',
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",

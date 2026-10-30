@@ -327,3 +327,87 @@ mark {
   font-size: 14px;
   color: var(--muted);
 }
+
+.llm {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.llm h2 {
+  margin-top: 0;
+}
+
+.llm h3 {
+  font-size: 15px;
+  margin: 16px 0 8px;
+}
+
+.llm-settings {
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.llm-settings label {
+  display: block;
+  margin: 8px 0;
+  color: var(--muted);
+}
+
+.llm-settings input:not([type='checkbox']),
+.llm-settings select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.llm-settings .check {
+  color: var(--text);
+}
+
+.privacy {
+  font-size: 14px;
+  color: var(--warning);
+}
+
+.privacy.local {
+  color: var(--muted);
+}
+
+.issues {
+  padding-left: 20px;
+  font-size: 14px;
+}
+
+.issues li {
+  margin-bottom: 12px;
+}
+
+.issues p {
+  margin: 4px 0;
+}
+
+.kind {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+blockquote {
+  margin: 4px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--mark);
+  background: var(--bg);
+}
+
+.suggestion {
+  color: var(--muted);
+}

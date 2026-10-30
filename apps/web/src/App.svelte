@@ -5,6 +5,7 @@
   import type { Algorithm, Result } from './lib/types';
   import Highlighted from './components/Highlighted.svelte';
   import LegacyResults from './components/LegacyResults.svelte';
+  import LlmPanel from './components/LlmPanel.svelte';
   import Results from './components/Results.svelte';
 
   const analyzer = new Analyzer();
@@ -24,6 +25,14 @@
   // Разметка ссылается на смещения в том тексте, по которому она посчитана.
   let analysis = $state<{ text: string; result: Result } | null>(null);
   let busy = $state(false);
+  // Оценка формулами для сравнения с оценкой LLM: сводная или SMOG в старом режиме.
+  let formula = $derived.by(() => {
+    if (!analysis) return null;
+    const r = analysis.result;
+    return r.algorithm === 'current'
+      ? (r.analysis.measurement.indexes?.average.value ?? null)
+      : r.analysis.measurement.indexes.index_SMOG;
+  });
   let error = $state('');
   let dragging = $state(false);
   let fileInput: HTMLInputElement;
@@ -150,6 +159,7 @@
     {:else}
       <p class="empty">Здесь появится оценка: уровень образования, нужный для понимания текста, и подробные показатели.</p>
     {/if}
+    <LlmPanel {text} {formula} />
     <details class="method">
       <summary>Как считается оценка</summary>
       <p>
