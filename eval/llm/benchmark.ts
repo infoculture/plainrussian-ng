@@ -50,7 +50,7 @@ const model = args.model ?? p.defaultModel;
 if (!model) fail('--model: укажите модель');
 const envName = KEY_ENV[id];
 const apiKey = envName ? (process.env[envName] ?? '') : '';
-if (p.needsKey && !apiKey) fail(`Нужен ключ в переменной ${envName}`);
+if (p.key === 'required' && !apiKey) fail(`Нужен ключ в переменной ${envName}`);
 const req = { provider: id, model, apiKey, baseUrl: args['base-url'] ?? p.baseUrl };
 
 // corpus.csv: path,grade,fit,title,url,note — в названиях бывают запятые в кавычках,

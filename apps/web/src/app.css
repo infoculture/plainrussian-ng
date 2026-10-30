@@ -411,3 +411,24 @@ blockquote {
 .suggestion {
   color: var(--muted);
 }
+
+.url-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.url-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.status span:last-child {
+  overflow-wrap: anywhere;
+}

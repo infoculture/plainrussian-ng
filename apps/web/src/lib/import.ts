@@ -1,6 +1,8 @@
 // Извлечение текста из файлов. Всё происходит в браузере; разборщики docx и pdf
 // загружаются только при первом таком файле.
 
+import type { Page } from './platform.ts';
+
 export const ACCEPT = '.txt,.md,.html,.htm,.docx,.pdf';
 
 export class ImportError extends Error {}
@@ -59,6 +61,24 @@ function htmlToText(html: string): string {
     .replace(/[ \t]*\n[ \t]*/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/**
+ * Текст страницы, загруженной по ссылке (только в настольном приложении).
+ * Из HTML берётся основная статья (Readability, как в Firefox Reader View),
+ * без меню, рекламы и подвала; если статью выделить не удалось — вся страница.
+ */
+export async function pageToText(page: Page): Promise<string> {
+  if (page.content_type === 'text/plain' || page.content_type === 'text/markdown') return page.text.trim();
+  if (page.content_type !== 'text/html' && page.content_type !== 'application/xhtml+xml') {
+    throw new ImportError(`По ссылке не текст и не веб-страница, а ${page.content_type || 'неизвестный формат'}.`);
+  }
+  const { Readability } = await import('@mozilla/readability');
+  const doc = new DOMParser().parseFromString(page.text, 'text/html');
+  const article = new Readability(doc).parse();
+  const text = htmlToText(article?.content ?? page.text);
+  if (!text) throw new ImportError('На странице не нашлось текста.');
+  return text;
 }
 
 async function docxToText(data: ArrayBuffer): Promise<string> {

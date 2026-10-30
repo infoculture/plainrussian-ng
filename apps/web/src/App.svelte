@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Analyzer } from './lib/analyzer';
-  import { ACCEPT, ImportError, readFileText } from './lib/import';
+  import { ACCEPT, ImportError, pageToText, readFileText } from './lib/import';
+  import { fetchPage, isDesktop } from './lib/platform';
   import { SAMPLES } from './lib/samples';
   import type { Algorithm, Result } from './lib/types';
   import Highlighted from './components/Highlighted.svelte';
@@ -35,6 +36,11 @@
   });
   let error = $state('');
   let dragging = $state(false);
+  // Открытие по ссылке есть только в настольном приложении: браузеру мешает CORS.
+  let urlOpen = $state(false);
+  let url = $state('');
+  let loadingUrl = $state(false);
+  let source = $state<{ url: string; text: string } | null>(null);
   let fileInput: HTMLInputElement;
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -65,6 +71,23 @@
       text = await readFileText(file);
     } catch (e) {
       error = e instanceof ImportError ? e.message : `Не удалось прочитать «${file.name}»: ${(e as Error).message}`;
+    }
+  }
+
+  async function openUrl() {
+    if (!url.trim() || loadingUrl) return;
+    error = '';
+    loadingUrl = true;
+    try {
+      const page = await fetchPage(url.trim());
+      text = await pageToText(page);
+      source = { url: page.url, text };
+      urlOpen = false;
+    } catch (e) {
+      // Команды Rust возвращают ошибку строкой с готовым сообщением.
+      error = e instanceof ImportError ? e.message : `Не удалось загрузить страницу: ${e instanceof Error ? e.message : e}`;
+    } finally {
+      loadingUrl = false;
     }
   }
 
@@ -103,6 +126,9 @@
   >
     <div class="toolbar">
       <button type="button" onclick={() => fileInput.click()}>Открыть файл</button>
+      {#if isDesktop}
+        <button type="button" class="secondary" onclick={() => (urlOpen = !urlOpen)}>Открыть по ссылке</button>
+      {/if}
       <input
         bind:this={fileInput}
         type="file"
@@ -121,6 +147,21 @@
         <button type="button" class="secondary" onclick={() => (text = '')}>Очистить</button>
       {/if}
     </div>
+    {#if urlOpen}
+      <div class="url-form">
+        <input
+          type="url"
+          bind:value={url}
+          placeholder="https://…"
+          spellcheck="false"
+          aria-label="Адрес страницы"
+          onkeydown={(e) => e.key === 'Enter' && openUrl()}
+        />
+        <button type="button" onclick={openUrl} disabled={loadingUrl || !url.trim()}>
+          {loadingUrl ? 'Загружаю…' : 'Загрузить'}
+        </button>
+      </div>
+    {/if}
     <textarea
       bind:value={text}
       placeholder="Вставьте текст или перетащите сюда файл: txt, html, docx, pdf"
@@ -133,6 +174,7 @@
         <span>Считаю…</span>
       {:else if text}
         <span>{text.length.toLocaleString('ru-RU')} знаков</span>
+        {#if source?.text === text}<span> · {source.url}</span>{/if}
       {/if}
     </div>
   </section>

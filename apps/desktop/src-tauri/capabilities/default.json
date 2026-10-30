@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Главное окно: базовые возможности Tauri. Команды приложения (net, secrets) доступны без отдельных разрешений.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

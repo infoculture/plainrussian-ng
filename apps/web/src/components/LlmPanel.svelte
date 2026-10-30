@@ -1,8 +1,10 @@
 <script lang="ts">
   import { ISSUE_KINDS, clampGrade, gradeLabel, quoteFound, type Assessment } from '../lib/llm/assessment.ts';
   import { LlmError, PROVIDERS, assess, listModels, provider } from '../lib/llm/providers.ts';
-  import { loadSettings, saveSettings, toRequest } from '../lib/llm/settings.ts';
+  import { loadSecrets, loadSettings, saveSettings, toRequest } from '../lib/llm/settings.ts';
+  import { isDesktop } from '../lib/platform.ts';
   import { plural } from '../lib/segments';
+  import { onMount } from 'svelte';
 
   let { text, formula }: { text: string; formula: number | null } = $props();
 
@@ -23,6 +25,9 @@
   } | null>(null);
 
   $effect(() => saveSettings($state.snapshot(settings)));
+  onMount(() => {
+    loadSecrets(settings);
+  });
   $effect(() => {
     // Подсказки моделей сбрасываются при смене провайдера.
     models = provider(settings.provider).models;
@@ -30,6 +35,14 @@
 
   let grade = $derived(result ? clampGrade(result.assessment.grade) : 0);
   let stale = $derived(result !== null && result.text !== text);
+  let destination = $derived.by(() => {
+    if (p.id !== 'custom') return p.title;
+    try {
+      return new URL(ps.baseUrl).host;
+    } catch {
+      return 'указанный сервис';
+    }
+  });
 
   async function run() {
     error = '';
@@ -39,6 +52,8 @@
     const current = text;
     try {
       const assessment = await assess(current, toRequest(settings), controller.signal);
+      // В настольном приложении запрос не прерывается, отменённый ответ просто отбрасываем.
+      if (controller.signal.aborted) return;
       result = {
         text: current,
         title: p.title,
@@ -73,7 +88,7 @@
     свой ключ API или модель на этом компьютере.
   </p>
 
-  <details class="llm-settings" open={p.needsKey ? !ps.apiKey : !ps.model}>
+  <details class="llm-settings" open={p.key === 'required' ? !ps.apiKey : !ps.model}>
     <summary>{p.title}{ps.model ? ` · ${ps.model}` : ''}</summary>
     <label>
       Провайдер
@@ -83,8 +98,11 @@
         {/each}
       </select>
     </label>
-    {#if p.local}
-      <label>Адрес API <input bind:value={ps.baseUrl} spellcheck="false" /></label>
+    {#if p.editableUrl}
+      <label>
+        Адрес API
+        <input bind:value={ps.baseUrl} spellcheck="false" placeholder="https://…/v1" />
+      </label>
     {/if}
     <label>
       Модель
@@ -96,11 +114,18 @@
     {#if p.kind === 'openai'}
       <button type="button" class="secondary" onclick={loadModels}>Загрузить список моделей</button>
     {/if}
-    {#if p.needsKey}
-      <label>Ключ API <input type="password" bind:value={ps.apiKey} autocomplete="off" spellcheck="false" /></label>
-      <label class="check"><input type="checkbox" bind:checked={ps.rememberKey} /> Запомнить ключ в этом браузере</label>
+    {#if p.key !== 'none'}
+      <label>
+        Ключ API{p.key === 'optional' ? ' (если нужен)' : ''}
+        <input type="password" bind:value={ps.apiKey} autocomplete="off" spellcheck="false" />
+      </label>
+      <label class="check">
+        <input type="checkbox" bind:checked={ps.rememberKey} />
+        {isDesktop ? 'Запомнить ключ в системном хранилище' : 'Запомнить ключ в этом браузере'}
+      </label>
       <p class="note">
-        Ключ хранится только в этом браузере и отправляется только {p.title}.
+        Ключ {isDesktop ? 'хранится в системном хранилище ключей' : 'хранится только в этом браузере'}
+        и отправляется только {destination}.
         {#if p.keyUrl}<a href={p.keyUrl} target="_blank" rel="noopener noreferrer">Получить ключ</a>.{/if}
       </p>
     {/if}
@@ -110,7 +135,7 @@
     {#if p.local}
       Текст останется на этом компьютере: модель работает локально.
     {:else}
-      Текст ({text.length.toLocaleString('ru-RU')} знаков) будет отправлен в {p.title}.
+      Текст ({text.length.toLocaleString('ru-RU')} знаков) будет отправлен: {destination}.
     {/if}
   </p>
   <div class="toolbar">

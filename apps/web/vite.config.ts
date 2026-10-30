@@ -33,42 +33,48 @@ function csp(): Plugin {
   };
 }
 
-export default defineConfig({
-  // Относительные пути: сборку можно положить в любой каталог статического хостинга.
-  base: './',
-  plugins: [
-    svelte(),
-    csp(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'script',
-      includeAssets: ['icon.svg'],
-      manifest: {
-        name: 'Простой русский — оценка читаемости текста',
-        short_name: 'Простой русский',
-        description: 'Оценка простоты русскоязычных текстов прямо на вашем устройстве',
-        lang: 'ru',
-        start_url: '.',
-        scope: '.',
-        display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#1f5f8b',
-        icons: [
-          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
-        // WASM и разборщики docx/pdf тоже кешируются, иначе офлайн не откроются файлы.
-        globPatterns: ['**/*.{html,js,mjs,css,wasm,svg,png}'],
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
-        // При injectRegister: 'script' плагин сам их не включает: без них новая
-        // версия ждёт, пока закроются все вкладки.
-        skipWaiting: true,
-        clientsClaim: true,
-      },
-    }),
-  ],
-  worker: { format: 'es' },
+// Режим desktop (`vite --mode desktop`) — сборка для Tauri: без service worker, который
+// не работает на протоколе tauri://, и без meta-CSP — её задаёт tauri.conf.json.
+export default defineConfig(({ mode }) => {
+  const desktop = mode === 'desktop';
+  return {
+    // Относительные пути: сборку можно положить в любой каталог статического хостинга.
+    base: './',
+    build: { outDir: desktop ? 'dist-desktop' : 'dist' },
+    plugins: [svelte(), ...(desktop ? [] : [csp(), pwa()])],
+    worker: { format: 'es' as const },
+  };
 });
+
+function pwa() {
+  return VitePWA({
+    registerType: 'autoUpdate',
+    injectRegister: 'script',
+    includeAssets: ['icon.svg'],
+    manifest: {
+      name: 'Простой русский — оценка читаемости текста',
+      short_name: 'Простой русский',
+      description: 'Оценка простоты русскоязычных текстов прямо на вашем устройстве',
+      lang: 'ru',
+      start_url: '.',
+      scope: '.',
+      display: 'standalone',
+      background_color: '#ffffff',
+      theme_color: '#1f5f8b',
+      icons: [
+        { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: 'icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    },
+    workbox: {
+      // WASM и разборщики docx/pdf тоже кешируются, иначе офлайн не откроются файлы.
+      globPatterns: ['**/*.{html,js,mjs,css,wasm,svg,png}'],
+      maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+      // При injectRegister: 'script' плагин сам их не включает: без них новая
+      // версия ждёт, пока закроются все вкладки.
+      skipWaiting: true,
+      clientsClaim: true,
+    },
+  });
+}

@@ -4,8 +4,28 @@
     {
       "name": "web-preview",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/web", "run", "preview", "--", "--port", "4173", "--strictPort"],
+      "runtimeArgs": [
+        "--prefix",
+        "apps/web",
+        "run",
+        "preview",
+        "--",
+        "--port",
+        "4173",
+        "--strictPort"
+      ],
       "port": 4173
+    },
+    {
+      "name": "web-desktop-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "apps/web",
+        "run",
+        "dev:desktop"
+      ],
+      "port": 5173
     }
   ]
 }
