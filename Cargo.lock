@@ -94,6 +94,7 @@ name = "pr-wasm"
 version = "0.1.0"
 dependencies = [
  "pr-core",
+ "serde",
  "serde_json",
  "wasm-bindgen",
 ]

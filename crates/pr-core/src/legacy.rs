@@ -277,6 +277,108 @@ impl Counts {
     }
 }
 
+/// Слово в смысле старого алгоритма: отрезок между пробелами, в котором есть
+/// строчная гласная. Границы сужены до первой и последней буквы, чтобы
+/// подсветка не захватывала кавычки и знаки препинания.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct WordSpan {
+    pub start: usize,
+    pub end: usize,
+    pub syllables: u64,
+}
+
+/// Предложение в смысле старого алгоритма: текст до очередного `.`, `?` или `!`
+/// включительно. Хвост без такого знака помечен `terminated: false` и в
+/// `n_sentences` не входит.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SentenceSpan {
+    pub start: usize,
+    pub end: usize,
+    /// Число слов, которые начинаются в этом предложении.
+    pub words: u64,
+    pub terminated: bool,
+}
+
+/// Разметка текста для подсветки. Смещения — в единицах UTF-16, как у строк
+/// JavaScript. Счёт совпадает с [`measure`]: столько же слов, слогов и
+/// закрытых предложений.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Annotation {
+    pub words: Vec<WordSpan>,
+    pub sentences: Vec<SentenceSpan>,
+}
+
+/// Размечает слова и предложения по тем же правилам, что и [`measure`].
+pub fn annotate(text: &str) -> Annotation {
+    let mut words = Vec::new();
+    let mut sentences = Vec::new();
+    let mut pos = 0;
+    let mut wsyl = 0;
+    // Первая и последняя буква текущего слова.
+    let mut letters: Option<(usize, usize)> = None;
+    let mut sentence_start: Option<usize> = None;
+    let mut last_visible_end = 0;
+
+    for ch in text.chars() {
+        let next = pos + ch.len_utf16();
+        if is_py_space(ch) {
+            push_word(&mut words, wsyl, letters.take());
+            wsyl = 0;
+        } else {
+            let start = *sentence_start.get_or_insert(pos);
+            last_visible_end = next;
+            if ch.is_alphabetic() {
+                letters = Some((letters.map_or(pos, |(first, _)| first), next));
+            }
+            if is_ru_vowel(ch) {
+                wsyl += 1;
+            }
+            if matches!(ch, '.' | '?' | '!') {
+                sentences.push(SentenceSpan {
+                    start,
+                    end: next,
+                    words: 0,
+                    terminated: true,
+                });
+                sentence_start = None;
+            }
+        }
+        pos = next;
+    }
+    push_word(&mut words, wsyl, letters);
+    if let Some(start) = sentence_start {
+        sentences.push(SentenceSpan {
+            start,
+            end: last_visible_end,
+            words: 0,
+            terminated: false,
+        });
+    }
+
+    // Начало слова — буква, а каждый непробельный символ лежит в каком-то
+    // предложении, поэтому подходящее предложение всегда найдётся.
+    let mut i = 0;
+    for word in &words {
+        while sentences[i].end <= word.start {
+            i += 1;
+        }
+        sentences[i].words += 1;
+    }
+    Annotation { words, sentences }
+}
+
+fn push_word(words: &mut Vec<WordSpan>, wsyl: u64, letters: Option<(usize, usize)>) {
+    if wsyl == 0 {
+        return;
+    }
+    let (start, end) = letters.expect("в слове с гласной есть буква");
+    words.push(WordSpan {
+        start,
+        end,
+        syllables: wsyl,
+    });
+}
+
 /// Только строчные буквы: в Python `RU_LETTERS` нет заглавных.
 fn is_ru_letter(ch: char) -> bool {
     matches!(ch, 'а'..='я' | 'ё')
@@ -311,4 +413,47 @@ fn is_py_line_boundary(ch: char) -> bool {
             | '\u{2028}'
             | '\u{2029}'
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn annotate_spans_in_utf16() {
+        // 👋 занимает две единицы UTF-16, поэтому «мир» начинается с 12, а не с 11.
+        let text = "«Привет» 👋 мир! Высокопревосходительство т.е. спит";
+        let a = annotate(text);
+        let spans: Vec<_> = a
+            .words
+            .iter()
+            .map(|w| (w.start, w.end, w.syllables))
+            .collect();
+        // «Привет» без кавычек; «т.е.» — одно слово с одной гласной.
+        assert_eq!(
+            spans,
+            [
+                (1, 7, 2),
+                (12, 15, 1),
+                (17, 41, 9),
+                (42, 45, 1),
+                (47, 51, 1)
+            ]
+        );
+        let sentences: Vec<_> = a
+            .sentences
+            .iter()
+            .map(|s| (s.start, s.end, s.words, s.terminated))
+            .collect();
+        // «т.е.» дробит предложение, как в старом алгоритме.
+        assert_eq!(
+            sentences,
+            [
+                (0, 16, 2, true),
+                (17, 44, 2, true),
+                (44, 46, 0, true),
+                (47, 51, 1, false)
+            ]
+        );
+    }
 }

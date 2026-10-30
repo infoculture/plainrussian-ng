@@ -57,8 +57,51 @@ fn assert_same(case: &str, at: &str, expected: &Value, actual: &Value) {
 }
 
 fn check(case: &str, text: &str, expected: &Value) {
-    let actual = serde_json::to_value(legacy::measure(text)).unwrap();
+    let measurement = legacy::measure(text);
+    let actual = serde_json::to_value(&measurement).unwrap();
     assert_same(case, "$", expected, &actual);
+    check_annotation(case, text, &measurement.metrics);
+}
+
+/// Разметка для подсветки должна объяснять те же числа, что показывает `measure`.
+fn check_annotation(case: &str, text: &str, m: &legacy::Metrics) {
+    let a = legacy::annotate(text);
+    let len = text.encode_utf16().count();
+
+    assert_eq!(a.words.len() as u64, m.n_words, "{case}: слова");
+    let syllables: u64 = a.words.iter().map(|w| w.syllables).sum();
+    assert_eq!(syllables, m.n_syllabes, "{case}: слоги");
+    let complex = a
+        .words
+        .iter()
+        .filter(|w| w.syllables > legacy::COMPLEX_SYL_FACTOR)
+        .count();
+    assert_eq!(complex as u64, m.n_complex_words, "{case}: сложные слова");
+    let terminated = a.sentences.iter().filter(|s| s.terminated).count();
+    assert_eq!(terminated as u64, m.n_sentences, "{case}: предложения");
+    let in_sentences: u64 = a.sentences.iter().map(|s| s.words).sum();
+    assert_eq!(in_sentences, m.n_words, "{case}: слова по предложениям");
+    assert!(
+        a.sentences.iter().filter(|s| !s.terminated).count() <= 1,
+        "{case}: незакрытым может быть только последнее предложение"
+    );
+
+    let mut prev = 0;
+    for w in &a.words {
+        assert!(
+            prev <= w.start && w.start < w.end && w.end <= len,
+            "{case}: {w:?}"
+        );
+        prev = w.end;
+    }
+    prev = 0;
+    for s in &a.sentences {
+        assert!(
+            prev <= s.start && s.start < s.end && s.end <= len,
+            "{case}: {s:?}"
+        );
+        prev = s.end;
+    }
 }
 
 #[test]

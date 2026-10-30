@@ -1,0 +1,26 @@
+{
+  "name": "plainrussian-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "wasm": "sh scripts/build-wasm.sh",
+    "dev": "npm run wasm && vite",
+    "build": "npm run wasm && svelte-check && vite build",
+    "preview": "vite preview",
+    "check": "svelte-check"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tsconfig/svelte": "^5.0.8",
+    "svelte": "^5.57.3",
+    "svelte-check": "^4.7.7",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^2.0.0"
+  },
+  "dependencies": {
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.4.299"
+  }
+}
