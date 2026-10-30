@@ -1,233 +1,71 @@
 <script lang="ts">
-  import { Analyzer } from './lib/analyzer';
-  import { ACCEPT, ImportError, pageToText, readFileText } from './lib/import';
-  import { fetchPage, isDesktop } from './lib/platform';
-  import { SAMPLES } from './lib/samples';
-  import type { Algorithm, Result } from './lib/types';
-  import Highlighted from './components/Highlighted.svelte';
-  import LegacyResults from './components/LegacyResults.svelte';
-  import LlmPanel from './components/LlmPanel.svelte';
-  import Results from './components/Results.svelte';
+  import { onMount } from 'svelte';
+  import { persistLlmSettings } from './lib/llm/store.svelte.ts';
+  import { REPO_URL } from './lib/project';
+  import About from './components/About.svelte';
+  import Home from './components/Home.svelte';
+  import Logo from './components/Logo.svelte';
+  import Settings from './components/Settings.svelte';
 
-  const analyzer = new Analyzer();
-  const ALGORITHM_KEY = 'plainrussian.algorithm';
+  // Страницы переключаются по хешу: так работает и статический хостинг, и Tauri.
+  let route = $state(location.hash);
+  let page = $derived(route === '#settings' ? 'settings' : route === '#about' ? 'about' : 'home');
 
-  // Выбор алгоритма — удобство одного зрителя, поэтому он хранится в браузере.
-  function savedAlgorithm(): Algorithm {
-    try {
-      return localStorage.getItem(ALGORITHM_KEY) === 'legacy' ? 'legacy' : 'current';
-    } catch {
-      return 'current';
-    }
-  }
-
-  let text = $state('');
-  let algorithm = $state<Algorithm>(savedAlgorithm());
-  // Разметка ссылается на смещения в том тексте, по которому она посчитана.
-  let analysis = $state<{ text: string; result: Result } | null>(null);
-  let busy = $state(false);
-  // Оценка формулами для сравнения с оценкой LLM: сводная или SMOG в старом режиме.
-  let formula = $derived.by(() => {
-    if (!analysis) return null;
-    const r = analysis.result;
-    return r.algorithm === 'current'
-      ? (r.analysis.measurement.indexes?.average.value ?? null)
-      : r.analysis.measurement.indexes.index_SMOG;
+  onMount(() => {
+    persistLlmSettings();
+    const onHash = () => {
+      route = location.hash;
+      window.scrollTo(0, 0);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
   });
-  let error = $state('');
-  let dragging = $state(false);
-  // Открытие по ссылке есть только в настольном приложении: браузеру мешает CORS.
-  let urlOpen = $state(false);
-  let url = $state('');
-  let loadingUrl = $state(false);
-  let source = $state<{ url: string; text: string } | null>(null);
-  let fileInput: HTMLInputElement;
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  $effect(() => {
-    const current = text;
-    const chosen = algorithm;
-    clearTimeout(timer);
-    if (!current.trim()) {
-      analyzer.cancel();
-      analysis = null;
-      busy = false;
-      return;
-    }
-    busy = true;
-    timer = setTimeout(async () => {
-      const result = await analyzer.analyze(current, chosen);
-      if (result) {
-        analysis = { text: current, result };
-        busy = false;
-      }
-    }, 200);
-  });
-
-  async function openFile(file: File | undefined) {
-    if (!file) return;
-    error = '';
-    try {
-      text = await readFileText(file);
-    } catch (e) {
-      error = e instanceof ImportError ? e.message : `Не удалось прочитать «${file.name}»: ${(e as Error).message}`;
-    }
-  }
-
-  async function openUrl() {
-    if (!url.trim() || loadingUrl) return;
-    error = '';
-    loadingUrl = true;
-    try {
-      const page = await fetchPage(url.trim());
-      text = await pageToText(page);
-      source = { url: page.url, text };
-      urlOpen = false;
-    } catch (e) {
-      // Команды Rust возвращают ошибку строкой с готовым сообщением.
-      error = e instanceof ImportError ? e.message : `Не удалось загрузить страницу: ${e instanceof Error ? e.message : e}`;
-    } finally {
-      loadingUrl = false;
-    }
-  }
-
-  function choose(value: Algorithm) {
-    algorithm = value;
-    try {
-      localStorage.setItem(ALGORITHM_KEY, value);
-    } catch {
-      // Без хранилища выбор просто не запомнится.
-    }
-  }
-
-  function onDrop(event: DragEvent) {
-    event.preventDefault();
-    dragging = false;
-    openFile(event.dataTransfer?.files[0]);
-  }
 </script>
 
 <header class="site">
-  <h1>Простой русский</h1>
-  <p>Оценка читаемости текста. Текст обрабатывается на вашем устройстве и никуда не отправляется.</p>
+  <a href="#home" class="brand" aria-label="Простой русский — на главную">
+    <Logo size={44} />
+    <span>
+      <span class="title">Простой русский</span>
+      <span class="tagline">Оценка читаемости текста. Текст обрабатывается на вашем устройстве.</span>
+    </span>
+  </a>
+  <a href="#settings" class="button secondary nav" aria-current={page === 'settings' ? 'page' : undefined}>
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M4 6h9M19 6h1M4 12h3M13 12h7M4 18h11M21 18h-1" />
+      <circle cx="16" cy="6" r="2.5" />
+      <circle cx="10" cy="12" r="2.5" />
+      <circle cx="18" cy="18" r="2.5" />
+    </svg>
+    Настройки
+  </a>
 </header>
 
-<main class="layout">
-  <section
-    class="input"
-    class:dragging
-    aria-label="Текст для оценки"
-    ondragover={(e) => {
-      e.preventDefault();
-      dragging = true;
-    }}
-    ondragleave={() => (dragging = false)}
-    ondrop={onDrop}
-  >
-    <div class="toolbar">
-      <button type="button" onclick={() => fileInput.click()}>Открыть файл</button>
-      {#if isDesktop}
-        <button type="button" class="secondary" onclick={() => (urlOpen = !urlOpen)}>Открыть по ссылке</button>
-      {/if}
-      <input
-        bind:this={fileInput}
-        type="file"
-        accept={ACCEPT}
-        hidden
-        onchange={(e) => {
-          const input = e.currentTarget;
-          openFile(input.files?.[0]);
-          input.value = '';
-        }}
-      />
-      {#each SAMPLES as sample (sample.title)}
-        <button type="button" class="secondary" onclick={() => (text = sample.text)}>{sample.title}</button>
-      {/each}
-      {#if text}
-        <button type="button" class="secondary" onclick={() => (text = '')}>Очистить</button>
-      {/if}
-    </div>
-    {#if urlOpen}
-      <div class="url-form">
-        <input
-          type="url"
-          bind:value={url}
-          placeholder="https://…"
-          spellcheck="false"
-          aria-label="Адрес страницы"
-          onkeydown={(e) => e.key === 'Enter' && openUrl()}
-        />
-        <button type="button" onclick={openUrl} disabled={loadingUrl || !url.trim()}>
-          {loadingUrl ? 'Загружаю…' : 'Загрузить'}
-        </button>
-      </div>
-    {/if}
-    <textarea
-      bind:value={text}
-      placeholder="Вставьте текст или перетащите сюда файл: txt, html, docx, pdf"
-      spellcheck="false"
-    ></textarea>
-    <div class="status">
-      {#if error}
-        <span class="error" role="alert">{error}</span>
-      {:else if busy}
-        <span>Считаю…</span>
-      {:else if text}
-        <span>{text.length.toLocaleString('ru-RU')} знаков</span>
-        {#if source?.text === text}<span> · {source.url}</span>{/if}
-      {/if}
-    </div>
-  </section>
-
-  {#if analysis}
-    <section class="highlight-area" aria-label="Подсветка">
-      <Highlighted text={analysis.text} annotation={analysis.result.analysis.annotation} />
-    </section>
+<main>
+  <!-- Главная не размонтируется: текст и оценки сохраняются при переходе в настройки. -->
+  <div hidden={page !== 'home'}><Home /></div>
+  {#if page === 'settings'}
+    <Settings />
+  {:else if page === 'about'}
+    <About />
   {/if}
-
-  <aside class="results" aria-live="polite">
-    <div class="switch" role="radiogroup" aria-label="Алгоритм">
-      <button type="button" role="radio" aria-checked={algorithm === 'current'} onclick={() => choose('current')}>
-        Новый алгоритм
-      </button>
-      <button type="button" role="radio" aria-checked={algorithm === 'legacy'} onclick={() => choose('legacy')}>
-        Как на старом сайте
-      </button>
-    </div>
-    {#if analysis?.result.algorithm === 'current'}
-      <Results measurement={analysis.result.analysis.measurement} />
-    {:else if analysis?.result.algorithm === 'legacy'}
-      <LegacyResults measurement={analysis.result.analysis.measurement} />
-    {:else}
-      <p class="empty">Здесь появится оценка: уровень образования, нужный для понимания текста, и подробные показатели.</p>
-    {/if}
-    <LlmPanel {text} {formula} />
-    <details class="method">
-      <summary>Как считается оценка</summary>
-      <p>
-        Пять формул читаемости, адаптированных для русского языка: Flesch-Kincaid, Coleman-Liau,
-        SMOG, ARI и упрощённая Dale-Chale. Каждая даёт число лет обучения, нужное для понимания
-        текста. Главная оценка — их среднее.
-      </p>
-      <p>
-        Предложения делятся по правилам библиотеки razdel: сокращения вроде «т. е.», «ст.» и
-        инициалы не обрывают предложение. Слово — буквы, внутри допустимы дефис и апостроф;
-        числа словами не считаются. Слог — гласная буква; аббревиатура без гласных («ВВП»)
-        читается по буквам. Сложное слово — больше четырёх слогов.
-      </p>
-      <p>
-        Коэффициенты формул подобраны на текстах с экспертной оценкой уровня. Текстов немного,
-        поэтому оценка ориентировочная.
-      </p>
-      <p>
-        Режим «Как на старом сайте» повторяет старый plainrussian.ru, чтобы можно было сравнить
-        с прежними оценками. У него известные ошибки: заглавные буквы не учитываются, а «т.е.»
-        и «3.5» делят предложение на части.
-      </p>
-    </details>
-  </aside>
 </main>
 
 <footer class="site">
-  <p>Проект <a href="https://infoculture.ru">Информационной культуры</a>. Работает без интернета после первой загрузки.</p>
+  <nav aria-label="О сервисе">
+    <a href="#about">О проекте</a>
+    <a href={REPO_URL} target="_blank" rel="noopener noreferrer">Исходный код на GitHub</a>
+    <a href="https://infoculture.ru">Информационная культура</a>
+  </nav>
+  <p>Работает без интернета после первой загрузки.</p>
 </footer>

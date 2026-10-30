@@ -1,19 +1,17 @@
 <script lang="ts">
   import { ISSUE_KINDS, clampGrade, gradeLabel, quoteFound, type Assessment } from '../lib/llm/assessment.ts';
-  import { LlmError, PROVIDERS, assess, listModels, provider } from '../lib/llm/providers.ts';
-  import { loadSecrets, loadSettings, saveSettings, toRequest } from '../lib/llm/settings.ts';
-  import { isDesktop } from '../lib/platform.ts';
+  import { LlmError, assess, provider } from '../lib/llm/providers.ts';
+  import { toRequest } from '../lib/llm/settings.ts';
+  import { isConfigured, llm } from '../lib/llm/store.svelte.ts';
   import { plural } from '../lib/segments';
-  import { onMount } from 'svelte';
 
   let { text, formula }: { text: string; formula: number | null } = $props();
 
   const fmt = (n: number, digits = 1) => n.toLocaleString('ru-RU', { maximumFractionDigits: digits });
 
-  let settings = $state(loadSettings());
-  let p = $derived(provider(settings.provider));
-  let ps = $derived(settings.providers[settings.provider]);
-  let models = $state<string[]>([]);
+  let p = $derived(provider(llm.provider));
+  let ps = $derived(llm.providers[llm.provider]);
+  let configured = $derived(isConfigured());
   let running = $state<AbortController | null>(null);
   let error = $state('');
   let result = $state<{
@@ -23,15 +21,6 @@
     seconds: number;
     assessment: Assessment;
   } | null>(null);
-
-  $effect(() => saveSettings($state.snapshot(settings)));
-  onMount(() => {
-    loadSecrets(settings);
-  });
-  $effect(() => {
-    // Подсказки моделей сбрасываются при смене провайдера.
-    models = provider(settings.provider).models;
-  });
 
   let grade = $derived(result ? clampGrade(result.assessment.grade) : 0);
   let stale = $derived(result !== null && result.text !== text);
@@ -51,7 +40,7 @@
     const started = performance.now();
     const current = text;
     try {
-      const assessment = await assess(current, toRequest(settings), controller.signal);
+      const assessment = await assess(current, toRequest(llm), controller.signal);
       // В настольном приложении запрос не прерывается, отменённый ответ просто отбрасываем.
       if (controller.signal.aborted) return;
       result = {
@@ -69,83 +58,33 @@
       if (running === controller) running = null;
     }
   }
-
-  async function loadModels() {
-    error = '';
-    try {
-      models = await listModels(toRequest(settings));
-      if (!ps.model && models.length) ps.model = models[0];
-    } catch (e) {
-      error = e instanceof LlmError ? e.message : (e as Error).message;
-    }
-  }
 </script>
 
 <section class="llm" aria-labelledby="llm-title">
   <h2 id="llm-title">Оценка с помощью LLM</h2>
-  <p class="note">
-    Другой взгляд на текст: языковая модель оценивает его целиком и объясняет, что мешает понять. Нужен
-    свой ключ API или модель на этом компьютере.
-  </p>
-
-  <details class="llm-settings" open={p.key === 'required' ? !ps.apiKey : !ps.model}>
-    <summary>{p.title}{ps.model ? ` · ${ps.model}` : ''}</summary>
-    <label>
-      Провайдер
-      <select bind:value={settings.provider}>
-        {#each PROVIDERS as option (option.id)}
-          <option value={option.id}>{option.title}</option>
-        {/each}
-      </select>
-    </label>
-    {#if p.editableUrl}
-      <label>
-        Адрес API
-        <input bind:value={ps.baseUrl} spellcheck="false" placeholder="https://…/v1" />
-      </label>
-    {/if}
-    <label>
-      Модель
-      <input bind:value={ps.model} list="llm-models" spellcheck="false" placeholder="название модели" />
-      <datalist id="llm-models">
-        {#each models as model (model)}<option value={model}></option>{/each}
-      </datalist>
-    </label>
-    {#if p.kind === 'openai'}
-      <button type="button" class="secondary" onclick={loadModels}>Загрузить список моделей</button>
-    {/if}
-    {#if p.key !== 'none'}
-      <label>
-        Ключ API{p.key === 'optional' ? ' (если нужен)' : ''}
-        <input type="password" bind:value={ps.apiKey} autocomplete="off" spellcheck="false" />
-      </label>
-      <label class="check">
-        <input type="checkbox" bind:checked={ps.rememberKey} />
-        {isDesktop ? 'Запомнить ключ в системном хранилище' : 'Запомнить ключ в этом браузере'}
-      </label>
-      <p class="note">
-        Ключ {isDesktop ? 'хранится в системном хранилище ключей' : 'хранится только в этом браузере'}
-        и отправляется только {destination}.
-        {#if p.keyUrl}<a href={p.keyUrl} target="_blank" rel="noopener noreferrer">Получить ключ</a>.{/if}
-      </p>
-    {/if}
-  </details>
-
-  <p class="privacy" class:local={p.local}>
-    {#if p.local}
-      Текст останется на этом компьютере: модель работает локально.
-    {:else}
-      Текст ({text.length.toLocaleString('ru-RU')} знаков) будет отправлен: {destination}.
-    {/if}
-  </p>
-  <div class="toolbar">
-    <button type="button" onclick={run} disabled={!text.trim() || running !== null}>
-      {running ? 'Оцениваю…' : 'Оценить'}
-    </button>
-    {#if running}
-      <button type="button" class="secondary" onclick={() => running?.abort()}>Отменить</button>
-    {/if}
-  </div>
+  {#if !configured}
+    <p class="note">
+      Языковая модель может оценить текст целиком и объяснить, что мешает его понять.
+      <a href="#settings">Подключить модель</a>
+    </p>
+  {:else}
+    <p class="privacy" class:local={p.local}>
+      {#if p.local}
+        {p.title}, {ps.model}: текст останется на этом компьютере.
+      {:else}
+        {ps.model}: текст ({text.length.toLocaleString('ru-RU')} знаков) будет отправлен: {destination}.
+      {/if}
+      <a href="#settings">Изменить</a>
+    </p>
+    <div class="toolbar">
+      <button type="button" onclick={run} disabled={!text.trim() || running !== null}>
+        {running ? 'Оцениваю…' : 'Оценить'}
+      </button>
+      {#if running}
+        <button type="button" class="secondary" onclick={() => running?.abort()}>Отменить</button>
+      {/if}
+    </div>
+  {/if}
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
   {#if result}

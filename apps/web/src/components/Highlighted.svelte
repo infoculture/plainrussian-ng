@@ -19,5 +19,5 @@
     <p class="warning">Подсвечены первые {HIGHLIGHT_LIMIT.toLocaleString('ru-RU')} знаков. Оценка посчитана по всему тексту.</p>
   {/if}
   <!-- Разметка в одну строку: переносы внутри шаблона попали бы в текст. -->
-  <div class="annotated">{#each blocks as b, i (i)}{#if b.kind === 'gap'}{b.text}{:else}<span class="s l{b.level}" title={b.terminated ? words(b.words) : `${words(b.words)}, без точки в конце: не входит в число предложений`}>{#each b.parts as p, j (j)}{#if p.syllables}<mark title="{p.syllables} {plural(p.syllables, ['слог', 'слога', 'слогов'])}">{p.text}</mark>{:else}{p.text}{/if}{/each}</span>{/if}{/each}</div>
+  <div class="annotated">{#each blocks as b, i (i)}{#if b.kind === 'gap'}{b.text}{:else}<span class="s l{b.level}" title={words(b.words)}>{#each b.parts as p, j (j)}{#if p.syllables}<mark title="{p.syllables} {plural(p.syllables, ['слог', 'слога', 'слогов'])}">{p.text}</mark>{:else}{p.text}{/if}{/each}</span>{/if}{/each}</div>
 </details>

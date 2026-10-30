@@ -1,16 +1,13 @@
 // Ядро считает в отдельном потоке, чтобы длинный текст не подвешивал страницу.
-import init, { analyze, analyzeLegacy } from '../wasm/pkg/pr_wasm.js';
-import type { Algorithm } from './types';
+import init, { analyze } from '../wasm/pkg/pr_wasm.js';
 
 export interface Request {
   id: number;
   text: string;
-  algorithm: Algorithm;
 }
 
 export interface Response {
   id: number;
-  algorithm: Algorithm;
   json: string;
 }
 
@@ -24,7 +21,6 @@ const ready = init();
 
 scope.onmessage = async (event) => {
   await ready;
-  const { id, text, algorithm } = event.data;
-  const json = algorithm === 'legacy' ? analyzeLegacy(text) : analyze(text);
-  scope.postMessage({ id, algorithm, json });
+  const { id, text } = event.data;
+  scope.postMessage({ id, json: analyze(text) });
 };

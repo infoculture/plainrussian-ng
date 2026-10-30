@@ -18,7 +18,7 @@ export interface Part {
 
 export type Block =
   | { kind: 'gap'; text: string }
-  | { kind: 'sentence'; level: 0 | 1 | 2; words: number; terminated: boolean; parts: Part[] };
+  | { kind: 'sentence'; level: 0 | 1 | 2; words: number; parts: Part[] };
 
 /** Режет текст на промежутки и предложения, а предложения — на обычный текст и сложные слова. */
 export function buildBlocks(text: string, annotation: Annotation): Block[] {
@@ -50,7 +50,7 @@ export function buildBlocks(text: string, annotation: Annotation): Block[] {
     if (end > cursor) parts.push({ text: text.slice(cursor, end) });
 
     const level = s.words >= VERY_LONG_SENTENCE ? 2 : s.words >= LONG_SENTENCE ? 1 : 0;
-    blocks.push({ kind: 'sentence', level, words: s.words, terminated: s.terminated ?? true, parts });
+    blocks.push({ kind: 'sentence', level, words: s.words, parts });
     pos = end;
   }
   if (pos < limit) blocks.push({ kind: 'gap', text: text.slice(pos, limit) });

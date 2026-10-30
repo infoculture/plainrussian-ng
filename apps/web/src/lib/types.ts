@@ -1,8 +1,5 @@
-// Типы ответов pr-wasm.
+// Типы ответа pr-wasm `analyze`.
 
-export type Algorithm = 'current' | 'legacy';
-
-// ---- Текущий алгоритм: `analyze` ----
 
 export interface Calibration {
   version: string;
@@ -51,8 +48,6 @@ export interface Measurement {
   indexes: Indexes | null;
 }
 
-// ---- Разметка для подсветки, общая для обоих алгоритмов ----
-
 /** Смещения — в единицах UTF-16, подходят для `String.slice`. */
 export interface WordSpan {
   start: number;
@@ -64,8 +59,6 @@ export interface SentenceSpan {
   start: number;
   end: number;
   words: number;
-  /** Только у старого алгоритма: предложение без точки в конце не считается. */
-  terminated?: boolean;
 }
 
 export interface Annotation {
@@ -77,47 +70,3 @@ export interface Analysis {
   measurement: Measurement;
   annotation: Annotation;
 }
-
-// ---- Старый алгоритм: `analyzeLegacy`, имена полей как в JSON старого API ----
-
-export interface LegacyMetrics {
-  c_share: number;
-  avg_slen: number;
-  avg_syl: number;
-  n_syllabes: number;
-  n_words: number;
-  n_sentences: number;
-  n_complex_words: number;
-  n_simple_words: number;
-  chars: number;
-  letters: number;
-  spaces: number;
-  wsyllabes: Record<string, number>;
-}
-
-export interface LegacyIndexes {
-  index_fk: number;
-  index_cl: number;
-  index_dc: number;
-  index_SMOG: number;
-  index_ari: number;
-  grade_fk: string;
-  grade_cl: string;
-  grade_dc: string;
-  grade_SMOG: string;
-  grade_ari: string;
-}
-
-export interface LegacyMeasurement {
-  metrics: LegacyMetrics;
-  indexes: LegacyIndexes;
-}
-
-export interface LegacyAnalysis {
-  measurement: LegacyMeasurement;
-  annotation: Annotation;
-}
-
-export type Result =
-  | { algorithm: 'current'; analysis: Analysis }
-  | { algorithm: 'legacy'; analysis: LegacyAnalysis };
