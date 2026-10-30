@@ -3,9 +3,17 @@
 //! Результаты отдаются строкой JSON: `JSON.parse` на стороне JS быстрее,
 //! чем поштучное создание объектов через границу WASM.
 
-use pr_core::legacy;
+use pr_core::{legacy, readability};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
+
+/// Оценка по текущему алгоритму и разметка для подсветки:
+/// `{"measurement": {...}, "annotation": {"words": [...], "sentences": [...]}}`.
+/// В `measurement.calibration` — версия калибровки и её коэффициенты.
+#[wasm_bindgen]
+pub fn analyze(text: &str) -> String {
+    to_json(&readability::analyze(text))
+}
 
 /// Оценка по алгоритму старого plainrussian.ru. Возвращает JSON в формате
 /// ответа `/api/1.0/ru/measure/`: `{"metrics": {...}, "indexes": {...}}`.

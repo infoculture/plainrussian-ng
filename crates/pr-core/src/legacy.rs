@@ -15,6 +15,9 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
+// Пробелы для `str.split()` в Python 3: Unicode White_Space плюс `\x1c`–`\x1f`.
+use crate::pychar::is_space as is_py_space;
+
 /// Слово с числом слогов больше этого считается сложным.
 pub const COMPLEX_SYL_FACTOR: u64 = 4;
 
@@ -390,12 +393,6 @@ fn is_ru_vowel(ch: char) -> bool {
         ch,
         'а' | 'е' | 'ё' | 'и' | 'о' | 'у' | 'ы' | 'э' | 'ю' | 'я'
     )
-}
-
-/// Пробельные символы для `str.split()` в Python 3: Unicode White_Space
-/// плюс разделители `\x1c`–`\x1f`.
-fn is_py_space(ch: char) -> bool {
-    ch.is_whitespace() || matches!(ch, '\x1c'..='\x1f')
 }
 
 /// Границы строк для `str.splitlines()` в Python 3. В Python 2.7 `\v` и `\f`

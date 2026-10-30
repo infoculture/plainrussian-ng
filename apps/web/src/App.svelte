@@ -2,15 +2,27 @@
   import { Analyzer } from './lib/analyzer';
   import { ACCEPT, ImportError, readFileText } from './lib/import';
   import { SAMPLES } from './lib/samples';
-  import type { Analysis } from './lib/types';
+  import type { Algorithm, Result } from './lib/types';
   import Highlighted from './components/Highlighted.svelte';
+  import LegacyResults from './components/LegacyResults.svelte';
   import Results from './components/Results.svelte';
 
   const analyzer = new Analyzer();
+  const ALGORITHM_KEY = 'plainrussian.algorithm';
+
+  // Выбор алгоритма — удобство одного зрителя, поэтому он хранится в браузере.
+  function savedAlgorithm(): Algorithm {
+    try {
+      return localStorage.getItem(ALGORITHM_KEY) === 'legacy' ? 'legacy' : 'current';
+    } catch {
+      return 'current';
+    }
+  }
 
   let text = $state('');
+  let algorithm = $state<Algorithm>(savedAlgorithm());
   // Разметка ссылается на смещения в том тексте, по которому она посчитана.
-  let analysis = $state<{ text: string; result: Analysis } | null>(null);
+  let analysis = $state<{ text: string; result: Result } | null>(null);
   let busy = $state(false);
   let error = $state('');
   let dragging = $state(false);
@@ -19,6 +31,7 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
     const current = text;
+    const chosen = algorithm;
     clearTimeout(timer);
     if (!current.trim()) {
       analyzer.cancel();
@@ -28,7 +41,7 @@
     }
     busy = true;
     timer = setTimeout(async () => {
-      const result = await analyzer.analyze(current);
+      const result = await analyzer.analyze(current, chosen);
       if (result) {
         analysis = { text: current, result };
         busy = false;
@@ -43,6 +56,15 @@
       text = await readFileText(file);
     } catch (e) {
       error = e instanceof ImportError ? e.message : `Не удалось прочитать «${file.name}»: ${(e as Error).message}`;
+    }
+  }
+
+  function choose(value: Algorithm) {
+    algorithm = value;
+    try {
+      localStorage.setItem(ALGORITHM_KEY, value);
+    } catch {
+      // Без хранилища выбор просто не запомнится.
     }
   }
 
@@ -108,31 +130,47 @@
 
   {#if analysis}
     <section class="highlight-area" aria-label="Подсветка">
-      <Highlighted text={analysis.text} annotation={analysis.result.annotation} />
+      <Highlighted text={analysis.text} annotation={analysis.result.analysis.annotation} />
     </section>
   {/if}
 
   <aside class="results" aria-live="polite">
-    {#if analysis}
-      <Results measurement={analysis.result.measurement} />
+    <div class="switch" role="radiogroup" aria-label="Алгоритм">
+      <button type="button" role="radio" aria-checked={algorithm === 'current'} onclick={() => choose('current')}>
+        Новый алгоритм
+      </button>
+      <button type="button" role="radio" aria-checked={algorithm === 'legacy'} onclick={() => choose('legacy')}>
+        Как на старом сайте
+      </button>
+    </div>
+    {#if analysis?.result.algorithm === 'current'}
+      <Results measurement={analysis.result.analysis.measurement} />
+    {:else if analysis?.result.algorithm === 'legacy'}
+      <LegacyResults measurement={analysis.result.analysis.measurement} />
     {:else}
       <p class="empty">Здесь появится оценка: уровень образования, нужный для понимания текста, и подробные показатели.</p>
     {/if}
     <details class="method">
       <summary>Как считается оценка</summary>
       <p>
-        Используются пять формул читаемости, адаптированных для русского языка: Flesch-Kincaid,
-        Coleman-Liau, SMOG, ARI и упрощённая Dale-Chale. Результат — число лет обучения,
-        нужное для понимания текста. Главная оценка — по SMOG.
+        Пять формул читаемости, адаптированных для русского языка: Flesch-Kincaid, Coleman-Liau,
+        SMOG, ARI и упрощённая Dale-Chale. Каждая даёт число лет обучения, нужное для понимания
+        текста. Главная оценка — их среднее.
       </p>
       <p>
-        Слог — гласная буква. Сложное слово — больше четырёх слогов. Конец предложения — точка,
-        вопросительный или восклицательный знак.
+        Предложения делятся по правилам библиотеки razdel: сокращения вроде «т. е.», «ст.» и
+        инициалы не обрывают предложение. Слово — буквы, внутри допустимы дефис и апостроф;
+        числа словами не считаются. Слог — гласная буква; аббревиатура без гласных («ВВП»)
+        читается по буквам. Сложное слово — больше четырёх слогов.
       </p>
       <p>
-        Алгоритм повторяет старый plainrussian.ru, чтобы оценки совпадали с прежними. Поэтому у него
-        те же ограничения: заглавные буквы не учитываются, а сокращения вроде «т.е.» и числа вроде
-        «3.5» делят предложение на части. Исправленный алгоритм появится в следующих версиях.
+        Коэффициенты формул подобраны на текстах с экспертной оценкой уровня. Текстов немного,
+        поэтому оценка ориентировочная.
+      </p>
+      <p>
+        Режим «Как на старом сайте» повторяет старый plainrussian.ru, чтобы можно было сравнить
+        с прежними оценками. У него известные ошибки: заглавные буквы не учитываются, а «т.е.»
+        и «3.5» делят предложение на части.
       </p>
     </details>
   </aside>

@@ -50,7 +50,7 @@ export function buildBlocks(text: string, annotation: Annotation): Block[] {
     if (end > cursor) parts.push({ text: text.slice(cursor, end) });
 
     const level = s.words >= VERY_LONG_SENTENCE ? 2 : s.words >= LONG_SENTENCE ? 1 : 0;
-    blocks.push({ kind: 'sentence', level, words: s.words, terminated: s.terminated, parts });
+    blocks.push({ kind: 'sentence', level, words: s.words, terminated: s.terminated ?? true, parts });
     pos = end;
   }
   if (pos < limit) blocks.push({ kind: 'gap', text: text.slice(pos, limit) });
