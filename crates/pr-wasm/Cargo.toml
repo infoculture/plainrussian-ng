@@ -1,0 +1,15 @@
+[package]
+name = "pr-wasm"
+description = "WebAssembly-обёртка над pr-core для браузера"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pr-core.workspace = true
+serde_json.workspace = true
+wasm-bindgen = "0.2"

@@ -1,0 +1,695 @@
+[
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (0)",
+    "grade_cl": "неизвестно (0)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (0)",
+    "index_SMOG": 0,
+    "index_ari": 0,
+    "index_cl": 0,
+    "index_dc": 0,
+    "index_fk": 0
+   },
+   "metrics": {
+    "avg_slen": 0,
+    "avg_syl": 0,
+    "c_share": 0,
+    "chars": 0,
+    "letters": 0,
+    "n_complex_words": 0,
+    "n_sentences": 0,
+    "n_simple_words": 0,
+    "n_syllabes": 0,
+    "n_words": 0,
+    "spaces": 0,
+    "wsyllabes": {}
+   }
+  },
+  "name": "empty",
+  "text": ""
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (0)",
+    "grade_cl": "неизвестно (0)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (0)",
+    "index_SMOG": 0,
+    "index_ari": 0,
+    "index_cl": 0,
+    "index_dc": 0,
+    "index_fk": 0
+   },
+   "metrics": {
+    "avg_slen": 0,
+    "avg_syl": 0,
+    "c_share": 0,
+    "chars": 6,
+    "letters": 0,
+    "n_complex_words": 0,
+    "n_sentences": 0,
+    "n_simple_words": 0,
+    "n_syllabes": 0,
+    "n_words": 0,
+    "spaces": 6,
+    "wsyllabes": {}
+   }
+  },
+  "name": "spaces_only",
+  "text": "   \t  "
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (0)",
+    "grade_cl": "неизвестно (0)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (0)",
+    "index_SMOG": 0.05,
+    "index_ari": 0,
+    "index_cl": 0,
+    "index_dc": 0,
+    "index_fk": 0
+   },
+   "metrics": {
+    "avg_slen": 0.0,
+    "avg_syl": 0,
+    "c_share": 0,
+    "chars": 9,
+    "letters": 0,
+    "n_complex_words": 0,
+    "n_sentences": 9,
+    "n_simple_words": 0,
+    "n_syllabes": 0,
+    "n_words": 0,
+    "spaces": 0,
+    "wsyllabes": {}
+   }
+  },
+  "name": "only_punct",
+  "text": "...!!!???"
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (0)",
+    "grade_cl": "7 - 9-й класс (возраст примерно: 12-14 лет)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (0)",
+    "index_SMOG": 0,
+    "index_ari": 0,
+    "index_cl": 7.170000000000002,
+    "index_dc": 0,
+    "index_fk": 0
+   },
+   "metrics": {
+    "avg_slen": 0,
+    "avg_syl": 1.8,
+    "c_share": 0.0,
+    "chars": 30,
+    "letters": 25,
+    "n_complex_words": 0,
+    "n_sentences": 0,
+    "n_simple_words": 5,
+    "n_syllabes": 9,
+    "n_words": 5,
+    "spaces": 5,
+    "wsyllabes": {
+     "1": 1,
+     "2": 4
+    }
+   }
+  },
+  "name": "no_sentence_end",
+  "text": "просто слова без точки в конце"
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (0)",
+    "grade_cl": "неизвестно (0)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (0)",
+    "index_SMOG": 0.05,
+    "index_ari": 0,
+    "index_cl": 0,
+    "index_dc": 0,
+    "index_fk": 0
+   },
+   "metrics": {
+    "avg_slen": 0.0,
+    "avg_syl": 0,
+    "c_share": 0,
+    "chars": 15,
+    "letters": 6,
+    "n_complex_words": 0,
+    "n_sentences": 2,
+    "n_simple_words": 0,
+    "n_syllabes": 0,
+    "n_words": 0,
+    "spaces": 3,
+    "wsyllabes": {}
+   }
+  },
+  "name": "no_vowels",
+  "text": "Пск ВВП ст. гг."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (-24)",
+    "grade_cl": "неизвестно (-50)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (-16)",
+    "index_SMOG": 0.05,
+    "index_ari": -24.499499999999998,
+    "index_cl": -49.83,
+    "index_dc": 0.273,
+    "index_fk": -15.982000000000001
+   },
+   "metrics": {
+    "avg_slen": 1.0,
+    "avg_syl": 1.0,
+    "c_share": 0.0,
+    "chars": 3,
+    "letters": 1,
+    "n_complex_words": 0,
+    "n_sentences": 1,
+    "n_simple_words": 1,
+    "n_syllabes": 1,
+    "n_words": 1,
+    "spaces": 0,
+    "wsyllabes": {
+     "1": 1
+    }
+   }
+  },
+  "name": "short",
+  "text": "Да."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (-6)",
+    "grade_cl": "неизвестно (-12)",
+    "grade_dc": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_fk": "неизвестно (-3)",
+    "index_SMOG": 0.05,
+    "index_ari": -6.034499999999998,
+    "index_cl": -12.142499999999998,
+    "index_dc": 0.728,
+    "index_fk": -3.027000000000001
+   },
+   "metrics": {
+    "avg_slen": 2.6666666666666665,
+    "avg_syl": 1.875,
+    "c_share": 0.0,
+    "chars": 44,
+    "letters": 31,
+    "n_complex_words": 0,
+    "n_sentences": 3,
+    "n_simple_words": 8,
+    "n_syllabes": 15,
+    "n_words": 8,
+    "spaces": 7,
+    "wsyllabes": {
+     "1": 2,
+     "2": 5,
+     "3": 1
+    }
+   }
+  },
+  "name": "simple",
+  "text": "Мама мыла раму. Папа читал газету. Кот спал."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "7 - 9-й класс (возраст примерно: 12-14 лет)",
+    "grade_ari": "Аспирантура, второе высшее образование, phD",
+    "grade_cl": "неизвестно (-15)",
+    "grade_dc": "Аспирантура, второе высшее образование, phD",
+    "grade_fk": "Аспирантура, второе высшее образование, phD",
+    "index_SMOG": 7.268771825363832,
+    "index_ari": 34.877,
+    "index_cl": -15.079999999999998,
+    "index_dc": 55.382000000000005,
+    "index_fk": 47.812
+   },
+   "metrics": {
+    "avg_slen": 0.6666666666666666,
+    "avg_syl": 5.5,
+    "c_share": 100.0,
+    "chars": 38,
+    "letters": 21,
+    "n_complex_words": 2,
+    "n_sentences": 3,
+    "n_simple_words": 0,
+    "n_syllabes": 11,
+    "n_words": 2,
+    "spaces": 2,
+    "wsyllabes": {
+     "5": 1,
+     "6": 1
+    }
+   }
+  },
+  "name": "uppercase",
+  "text": "ОБРАЗОВАНИЕ. Образование. образование."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (-8)",
+    "grade_cl": "неизвестно (-85)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (-10)",
+    "index_SMOG": 0.05,
+    "index_ari": -8.387124999999997,
+    "index_cl": -84.53,
+    "index_dc": 0.11375000000000002,
+    "index_fk": -10.4875
+   },
+   "metrics": {
+    "avg_slen": 0.4166666666666667,
+    "avg_syl": 1.4,
+    "c_share": 0.0,
+    "chars": 45,
+    "letters": 18,
+    "n_complex_words": 0,
+    "n_sentences": 12,
+    "n_simple_words": 5,
+    "n_syllabes": 7,
+    "n_words": 5,
+    "spaces": 8,
+    "wsyllabes": {
+     "1": 3,
+     "2": 2
+    }
+   }
+  },
+  "name": "abbreviations",
+  "text": "См. ст. 5 т.е. А.С. Пушкин писал... Что?! Да."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "4 - 6-й класс (возраст примерно: 9-11 лет)",
+    "grade_cl": "неизвестно (-12)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "index_SMOG": 0.05,
+    "index_ari": 4.854083333333335,
+    "index_cl": -12.496666666666659,
+    "index_dc": 0.40950000000000003,
+    "index_fk": 3.1103333333333296
+   },
+   "metrics": {
+    "avg_slen": 1.5,
+    "avg_syl": 2.3333333333333335,
+    "c_share": 0.0,
+    "chars": 33,
+    "letters": 17,
+    "n_complex_words": 0,
+    "n_sentences": 2,
+    "n_simple_words": 3,
+    "n_syllabes": 7,
+    "n_words": 3,
+    "spaces": 6,
+    "wsyllabes": {
+     "1": 1,
+     "3": 2
+    }
+   }
+  },
+  "name": "numbers",
+  "text": "Выручка выросла на 3.5% в 2024 г."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (-10)",
+    "grade_cl": "неизвестно (-20)",
+    "grade_dc": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_fk": "неизвестно (-5)",
+    "index_SMOG": 0.05,
+    "index_ari": -10.134,
+    "index_cl": -19.955,
+    "index_dc": 0.546,
+    "index_fk": -5.014000000000003
+   },
+   "metrics": {
+    "avg_slen": 2.0,
+    "avg_syl": 1.75,
+    "c_share": 0.0,
+    "chars": 23,
+    "letters": 13,
+    "n_complex_words": 0,
+    "n_sentences": 2,
+    "n_simple_words": 4,
+    "n_syllabes": 7,
+    "n_words": 4,
+    "spaces": 4,
+    "wsyllabes": {
+     "1": 2,
+     "2": 1,
+     "3": 1
+    }
+   }
+  },
+  "name": "yo",
+  "text": "Ёжик ёлку нёс. ЁЁЁ ёёё."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "4 - 6-й класс (возраст примерно: 9-11 лет)",
+    "grade_ari": "неизвестно (-1)",
+    "grade_cl": "неизвестно (-12)",
+    "grade_dc": "1 - 3 курсы ВУЗа (возраст примерно: 17-19 лет)",
+    "grade_fk": "7 - 9-й класс (возраст примерно: 12-14 лет)",
+    "index_SMOG": 6.301639784888442,
+    "index_ari": -0.7439999999999998,
+    "index_cl": -11.704999999999998,
+    "index_dc": 14.346,
+    "index_fk": 9.186
+   },
+   "metrics": {
+    "avg_slen": 2.0,
+    "avg_syl": 2.75,
+    "c_share": 25.0,
+    "chars": 40,
+    "letters": 19,
+    "n_complex_words": 1,
+    "n_sentences": 2,
+    "n_simple_words": 3,
+    "n_syllabes": 11,
+    "n_words": 4,
+    "spaces": 4,
+    "wsyllabes": {
+     "1": 2,
+     "4": 1,
+     "5": 1
+    }
+   }
+  },
+  "name": "latin_mixed",
+  "text": "Компания Google и iPhone-приложение? Да!"
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "1 - 3 курсы ВУЗа (возраст примерно: 17-19 лет)",
+    "grade_ari": "Аспирантура, второе высшее образование, phD",
+    "grade_cl": "Аспирантура, второе высшее образование, phD",
+    "grade_dc": "Аспирантура, второе высшее образование, phD",
+    "grade_fk": "Аспирантура, второе высшее образование, phD",
+    "index_SMOG": 12.553279569776885,
+    "index_ari": 69.9615,
+    "index_cl": 56.00333333333333,
+    "index_dc": 37.61900000000001,
+    "index_fk": 65.12066666666666
+   },
+   "metrics": {
+    "avg_slen": 3.0,
+    "avg_syl": 6.666666666666667,
+    "c_share": 66.66666666666667,
+    "chars": 52,
+    "letters": 48,
+    "n_complex_words": 2,
+    "n_sentences": 1,
+    "n_simple_words": 1,
+    "n_syllabes": 20,
+    "n_words": 3,
+    "spaces": 2,
+    "wsyllabes": {
+     "1": 1,
+     "10": 1,
+     "9": 1
+    }
+   }
+  },
+  "name": "long_words",
+  "text": "Высокопревосходительство и человеконенавистничество."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "Аспирантура, второе высшее образование, phD",
+    "grade_ari": "Аспирантура, второе высшее образование, phD",
+    "grade_cl": "Аспирантура, второе высшее образование, phD",
+    "grade_dc": "Аспирантура, второе высшее образование, phD",
+    "grade_fk": "Аспирантура, второе высшее образование, phD",
+    "index_SMOG": 29.372789771779903,
+    "index_ari": 33.154,
+    "index_cl": 27.92,
+    "index_dc": 29.32971428571429,
+    "index_fk": 33.68257142857142
+   },
+   "metrics": {
+    "avg_slen": 28.0,
+    "avg_syl": 3.892857142857143,
+    "c_share": 39.285714285714285,
+    "chars": 284,
+    "letters": 252,
+    "n_complex_words": 11,
+    "n_sentences": 1,
+    "n_simple_words": 17,
+    "n_syllabes": 109,
+    "n_words": 28,
+    "spaces": 28,
+    "wsyllabes": {
+     "1": 5,
+     "3": 2,
+     "4": 10,
+     "5": 8,
+     "6": 3
+    }
+   }
+  },
+  "name": "bureaucratic",
+  "text": "Комиссия Правительства по законопроектной деятельности одобрила законопроект, направленный на повышение эффективности реализации государственной политики и выполнения мероприятий в области гражданской обороны и предупреждения чрезвычайных ситуаций природного и техногенного характера."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_cl": "неизвестно (-12)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "4 - 6-й класс (возраст примерно: 9-11 лет)",
+    "index_SMOG": 0.05,
+    "index_ari": 3.231500000000004,
+    "index_cl": -11.629999999999999,
+    "index_dc": 0.45500000000000007,
+    "index_fk": 4.109999999999999
+   },
+   "metrics": {
+    "avg_slen": 1.6666666666666667,
+    "avg_syl": 2.4,
+    "c_share": 0.0,
+    "chars": 35,
+    "letters": 27,
+    "n_complex_words": 0,
+    "n_sentences": 3,
+    "n_simple_words": 5,
+    "n_syllabes": 12,
+    "n_words": 5,
+    "spaces": 2,
+    "wsyllabes": {
+     "2": 3,
+     "3": 2
+    }
+   }
+  },
+  "name": "crlf",
+  "text": "Первая строка.\r\nВторая строка.\r\n\r\nТретья."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (0)",
+    "grade_cl": "неизвестно (-1)",
+    "grade_dc": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_fk": "неизвестно (-1)",
+    "index_SMOG": 0.05,
+    "index_ari": 0.410499999999999,
+    "index_cl": -0.9299999999999997,
+    "index_dc": 1.3650000000000002,
+    "index_fk": -0.5100000000000016
+   },
+   "metrics": {
+    "avg_slen": 5.0,
+    "avg_syl": 2.0,
+    "c_share": 0.0,
+    "chars": 30,
+    "letters": 24,
+    "n_complex_words": 0,
+    "n_sentences": 1,
+    "n_simple_words": 5,
+    "n_syllabes": 10,
+    "n_words": 5,
+    "spaces": 0,
+    "wsyllabes": {
+     "2": 5
+    }
+   }
+  },
+  "name": "unicode_spaces",
+  "text": "Слово слово слово　слово слово."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_cl": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_dc": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_fk": "неизвестно (-6)",
+    "index_SMOG": 0.05,
+    "index_ari": 0.5609999999999964,
+    "index_cl": 1.4700000000000024,
+    "index_dc": 2.7300000000000004,
+    "index_fk": -6.020000000000003
+   },
+   "metrics": {
+    "avg_slen": 10.0,
+    "avg_syl": 1.5,
+    "c_share": 0.0,
+    "chars": 48,
+    "letters": 46,
+    "n_complex_words": 0,
+    "n_sentences": 1,
+    "n_simple_words": 10,
+    "n_syllabes": 15,
+    "n_words": 10,
+    "spaces": 0,
+    "wsyllabes": {
+     "1": 6,
+     "2": 3,
+     "3": 1
+    }
+   }
+  },
+  "name": "line_separators",
+  "text": "раз два тричетыре\u000bпять\fшесть\u001cсемь\u001dвосемь\u001eдевять\u001fдесять."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (-2)",
+    "grade_cl": "неизвестно (-13)",
+    "grade_dc": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_fk": "4 - 6-й класс (возраст примерно: 9-11 лет)",
+    "index_SMOG": 0.05,
+    "index_ari": -2.309000000000001,
+    "index_cl": -13.079999999999998,
+    "index_dc": 0.546,
+    "index_fk": 5.636000000000003
+   },
+   "metrics": {
+    "avg_slen": 2.0,
+    "avg_syl": 2.5,
+    "c_share": 0.0,
+    "chars": 13,
+    "letters": 9,
+    "n_complex_words": 0,
+    "n_sentences": 1,
+    "n_simple_words": 2,
+    "n_syllabes": 5,
+    "n_words": 2,
+    "spaces": 1,
+    "wsyllabes": {
+     "2": 1,
+     "3": 1
+    }
+   }
+  },
+  "name": "combining",
+  "text": "йод йогурт."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "1 - 3-й класс (возраст примерно: 6-8 лет)",
+    "grade_cl": "неизвестно (-28)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (-16)",
+    "index_SMOG": 0.05,
+    "index_ari": 0.540499999999998,
+    "index_cl": -27.83,
+    "index_dc": 0.273,
+    "index_fk": -15.982000000000001
+   },
+   "metrics": {
+    "avg_slen": 1.0,
+    "avg_syl": 1.0,
+    "c_share": 0.0,
+    "chars": 13,
+    "letters": 5,
+    "n_complex_words": 0,
+    "n_sentences": 1,
+    "n_simple_words": 1,
+    "n_syllabes": 1,
+    "n_words": 1,
+    "spaces": 2,
+    "wsyllabes": {
+     "1": 1
+    }
+   }
+  },
+  "name": "bom",
+  "text": "﻿Текст с BOM."
+ },
+ {
+  "expected": {
+   "indexes": {
+    "grade_SMOG": "неизвестно (0)",
+    "grade_ari": "неизвестно (-3)",
+    "grade_cl": "неизвестно (-20)",
+    "grade_dc": "неизвестно (0)",
+    "grade_fk": "неизвестно (-6)",
+    "index_SMOG": 0.05,
+    "index_ari": -3.4925833333333323,
+    "index_cl": -19.829999999999995,
+    "index_dc": 0.40950000000000003,
+    "index_fk": -6.356333333333332
+   },
+   "metrics": {
+    "avg_slen": 1.5,
+    "avg_syl": 1.6666666666666667,
+    "c_share": 0.0,
+    "chars": 26,
+    "letters": 13,
+    "n_complex_words": 0,
+    "n_sentences": 2,
+    "n_simple_words": 3,
+    "n_syllabes": 5,
+    "n_words": 3,
+    "spaces": 4,
+    "wsyllabes": {
+     "1": 1,
+     "2": 2
+    }
+   }
+  },
+  "name": "emoji",
+  "text": "Привет 👋 мир! 👨‍👩‍👧 семья."
+ }
+]
