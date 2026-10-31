@@ -4,6 +4,7 @@
 //! Здесь запросы делает Rust, а интерфейс получает готовый текст.
 
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::time::Duration;
 
 use reqwest::Url;
@@ -30,7 +31,7 @@ pub struct Page {
 #[tauri::command]
 pub async fn fetch_url(url: String) -> Result<Page, String> {
     let url = http_url(&url)?;
-    let response = client(Duration::from_secs(30))?
+    let response = client(Duration::from_secs(30), &url)?
         .get(url.clone())
         .send()
         .await
@@ -73,7 +74,7 @@ pub struct HttpResponse {
 pub async fn http_request(request: HttpRequest) -> Result<HttpResponse, String> {
     let url = http_url(&request.url)?;
     // Локальные модели на слабом компьютере отвечают минутами.
-    let client = client(Duration::from_secs(600))?;
+    let client = client(Duration::from_secs(600), &url)?;
     let mut builder = match request.method.as_str() {
         "GET" => client.get(url.clone()),
         "POST" => client.post(url.clone()),
@@ -102,12 +103,31 @@ fn http_url(raw: &str) -> Result<Url, String> {
     }
 }
 
-fn client(timeout: Duration) -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
+fn client(timeout: Duration, url: &Url) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder()
         .user_agent(USER_AGENT)
-        .timeout(timeout)
-        .build()
-        .map_err(|e| e.to_string())
+        .timeout(timeout);
+    // Прокси из HTTP_PROXY или настроек системы не видит серверов на этом компьютере:
+    // запрос к LM Studio на localhost уходит в прокси и пропадает там.
+    if is_loopback(url) {
+        builder = builder.no_proxy();
+    }
+    builder.build().map_err(|e| e.to_string())
+}
+
+/// localhost, *.localhost, 127.0.0.0/8 и ::1.
+fn is_loopback(url: &Url) -> bool {
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    match host.parse::<IpAddr>() {
+        Ok(ip) => ip.is_loopback(),
+        Err(_) => {
+            let host = host.trim_end_matches('.');
+            host == "localhost" || host.ends_with(".localhost")
+        }
+    }
 }
 
 fn describe(e: &reqwest::Error, url: &Url) -> String {
@@ -117,7 +137,14 @@ fn describe(e: &reqwest::Error, url: &Url) -> String {
     } else if e.is_connect() {
         format!("Не удалось соединиться с {host}")
     } else {
-        format!("Ошибка запроса к {host}: {e}")
+        // Сама ошибка reqwest говорит только «error sending request», причина глубже.
+        let mut message = format!("Ошибка запроса к {host}: {e}");
+        let mut source = std::error::Error::source(e);
+        while let Some(cause) = source {
+            message.push_str(&format!(": {cause}"));
+            source = cause.source();
+        }
+        message
     }
 }
 
@@ -224,6 +251,28 @@ mod tests {
         assert!(http_url("просто текст").is_err());
     }
 
+    #[test]
+    fn recognizes_loopback_hosts() {
+        for url in [
+            "http://localhost:1234/v1",
+            "http://LocalHost./",
+            "http://lm.localhost/",
+            "http://127.0.0.1:11434/",
+            "http://127.1.2.3/",
+            "http://[::1]:1234/",
+        ] {
+            assert!(is_loopback(&Url::parse(url).unwrap()), "{url}");
+        }
+        for url in [
+            "https://api.openai.com/v1",
+            "http://192.168.1.10:1234/",
+            "http://localhost.example.com/",
+            "http://[::2]/",
+        ] {
+            assert!(!is_loopback(&Url::parse(url).unwrap()), "{url}");
+        }
+    }
+
     /// Сервер на один ответ: отдаёт `response` первому подключению.
     fn serve_once(response: Vec<u8>) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -272,6 +321,25 @@ mod tests {
         .unwrap();
         assert_eq!(result.status, 401);
         assert_eq!(result.body, "bad key");
+    }
+
+    /// LM Studio и Ollama слушают localhost. Если в окружении задан HTTP_PROXY,
+    /// запрос не должен уходить в прокси.
+    #[tokio::test]
+    async fn reaches_localhost_past_proxy() {
+        let response =
+            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}".to_vec();
+        let url = serve_once(response).replace("127.0.0.1", "localhost");
+        let result = http_request(HttpRequest {
+            method: "GET".into(),
+            url,
+            headers: HashMap::new(),
+            body: None,
+        })
+        .await
+        .unwrap();
+        assert_eq!(result.status, 200);
+        assert_eq!(result.body, "{}");
     }
 
     #[tokio::test]
