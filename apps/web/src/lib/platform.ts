@@ -16,6 +16,21 @@ export interface Page {
   text: string;
 }
 
+/**
+ * В настольном приложении внешние ссылки открываются в системном браузере:
+ * окно приложения не уходит со своей страницы. Вызывается один раз.
+ */
+export function openLinksInBrowser(): void {
+  if (!isDesktop) return;
+  document.addEventListener('click', (event) => {
+    const link = (event.target as Element | null)?.closest?.('a[href]');
+    if (!(link instanceof HTMLAnchorElement) || !/^https?:$/.test(link.protocol)) return;
+    if (link.origin === location.origin) return;
+    event.preventDefault();
+    invoke('open_external', { url: link.href }).catch((e) => console.error(`Ссылка не открылась: ${e}`));
+  });
+}
+
 /** Загружает страницу по ссылке. Только в настольном приложении. */
 export function fetchPage(url: string): Promise<Page> {
   return invoke<Page>('fetch_url', { url });

@@ -10,7 +10,7 @@ export type Request =
 export type Response =
   | { type: 'analyze'; id: number; json: string }
   | { type: 'clarity'; id: number; json: string }
-  | { type: 'clarity-error'; id: number; message: string };
+  | { type: 'error'; id: number; message: string };
 
 // Библиотеки DOM и WebWorker в TypeScript конфликтуют, поэтому тип потока описан вручную.
 const scope = self as unknown as {
@@ -21,12 +21,29 @@ const scope = self as unknown as {
 const ready = init();
 let clarity: Promise<Clarity> | null = null;
 
+/**
+ * Словарь кешируется здесь, а не в service worker: запросы из потока до него
+ * доходят не во всех браузерах. В имени файла хеш содержимого, поэтому прежние
+ * версии из кеша удаляются.
+ */
+async function fetchDictionary(url: string): Promise<ArrayBuffer> {
+  // Cache API есть только в защищённом контексте (https, localhost).
+  const cache = typeof caches === 'undefined' ? null : await caches.open('dictionary').catch(() => null);
+  const cached = await cache?.match(url);
+  if (cached) return cached.arrayBuffer();
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`словарь не загрузился (${response.status})`);
+  if (cache) {
+    for (const old of await cache.keys()) if (old.url !== url) await cache.delete(old);
+    await cache.put(url, response.clone()).catch(() => {});
+  }
+  return response.arrayBuffer();
+}
+
 async function loadClarity(dictionaryUrl: string): Promise<Clarity> {
   const glue = await import('../wasm/clarity-pkg/pr_wasm_clarity.js');
   await glue.default();
-  const response = await fetch(dictionaryUrl);
-  if (!response.ok) throw new Error(`словарь не загрузился (${response.status})`);
-  let bytes = new Uint8Array(await response.arrayBuffer());
+  let bytes = new Uint8Array(await fetchDictionary(dictionaryUrl));
   // Словарь лежит сжатым; если хостинг уже распаковал его сам, сигнатуры gzip не будет.
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
@@ -37,17 +54,20 @@ async function loadClarity(dictionaryUrl: string): Promise<Clarity> {
 
 scope.onmessage = async (event) => {
   const request = event.data;
-  if (request.type === 'analyze') {
-    await ready;
-    scope.postMessage({ type: 'analyze', id: request.id, json: analyze(request.text) });
-    return;
-  }
+  // Ответ приходит на каждый запрос, даже неудачный: иначе страница ждала бы его вечно.
   try {
-    clarity ??= loadClarity(request.dictionaryUrl);
+    if (request.type === 'analyze') {
+      await ready;
+      scope.postMessage({ type: 'analyze', id: request.id, json: analyze(request.text) });
+      return;
+    }
+    clarity ??= loadClarity(request.dictionaryUrl).catch((e) => {
+      clarity = null; // при следующем запросе попробуем загрузить заново
+      throw e;
+    });
     const checker = await clarity;
     scope.postMessage({ type: 'clarity', id: request.id, json: checker.check(request.text) });
   } catch (e) {
-    clarity = null; // при следующем запросе попробуем загрузить заново
-    scope.postMessage({ type: 'clarity-error', id: request.id, message: e instanceof Error ? e.message : String(e) });
+    scope.postMessage({ type: 'error', id: request.id, message: e instanceof Error ? e.message : String(e) });
   }
 };

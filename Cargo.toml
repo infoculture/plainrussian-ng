@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/pr-core", "crates/pr-wasm", "crates/pr-wasm-clarity", "crates/pr-cli", "crates/pr-py"]
+members = ["crates/pr-core", "crates/pr-wasm", "crates/pr-wasm-clarity", "crates/pr-cli", "crates/pr-py", "crates/pr-server"]
 # Настольное приложение собирается отдельно: ему нужны WebView и системные библиотеки.
 exclude = ["apps/desktop/src-tauri"]
 
@@ -8,6 +8,7 @@ exclude = ["apps/desktop/src-tauri"]
 version = "0.1.0"
 edition = "2024"
 license = "CC0-1.0"
+repository = "https://github.com/infoculture/plainrussian-ng"
 # rumorph требует 1.88.
 rust-version = "1.88"
 

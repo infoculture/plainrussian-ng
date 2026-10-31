@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LlmError, PROVIDERS, listModels, provider } from '../lib/llm/providers.ts';
+  import { LlmError, PROVIDERS, destination, listModels, provider, runsLocally } from '../lib/llm/providers.ts';
   import { toRequest } from '../lib/llm/settings.ts';
   import { isConfigured, llm } from '../lib/llm/store.svelte.ts';
   import { isDesktop } from '../lib/platform.ts';
@@ -16,23 +16,22 @@
     models = provider(llm.provider).models;
   });
 
-  let destination = $derived.by(() => {
-    if (p.id !== 'custom') return p.title;
-    try {
-      return new URL(ps.baseUrl).host;
-    } catch {
-      return 'указанный сервис';
-    }
-  });
+  let target = $derived(destination(p, ps.baseUrl));
+  let local = $derived(runsLocally(p, ps.baseUrl));
 
   async function loadModels() {
     error = '';
     loading = true;
+    // Пока список грузится, провайдера могут сменить: ответ относится к прежнему.
+    const id = llm.provider;
+    const settings = ps;
     try {
-      models = await listModels(toRequest(llm));
-      if (!ps.model && models.length) ps.model = models[0];
+      const list = await listModels(toRequest(llm));
+      if (llm.provider !== id) return;
+      models = list;
+      if (!settings.model && list.length) settings.model = list[0];
     } catch (e) {
-      error = e instanceof LlmError ? e.message : String(e);
+      if (llm.provider === id) error = e instanceof LlmError ? e.message : String(e);
     } finally {
       loading = false;
     }
@@ -80,9 +79,20 @@
       </datalist>
     </label>
 
+    {#if p.scopes}
+      <label>
+        Тип доступа
+        <select bind:value={ps.scope}>
+          {#each p.scopes as scope (scope.id)}
+            <option value={scope.id}>{scope.title}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
+
     {#if p.key !== 'none'}
       <label>
-        Ключ API{p.key === 'optional' ? ' (если нужен)' : ''}
+        {p.id === 'gigachat' ? 'Ключ авторизации' : 'Ключ API'}{p.key === 'optional' ? ' (если нужен)' : ''}
         <input type="password" bind:value={ps.apiKey} autocomplete="off" spellcheck="false" />
       </label>
       <label class="check">
@@ -91,18 +101,28 @@
       </label>
       <p class="note">
         Ключ {isDesktop ? 'хранится в системном хранилище ключей' : 'хранится только в этом браузере'}
-        и отправляется только {destination}.
+        и отправляется только {target}.
         {#if p.keyUrl}<a href={p.keyUrl} target="_blank" rel="noopener noreferrer">Получить ключ</a>.{/if}
+      </p>
+    {/if}
+
+    {#if p.id === 'gigachat'}
+      <p class="note">
+        Ключ авторизации выдаётся в личном кабинете GigaChat API. Для соединения в системе должен
+        быть установлен сертификат Минцифры «Russian Trusted Root CA»:
+        <a href="https://developers.sber.ru/docs/ru/gigachat/certificates" target="_blank" rel="noopener noreferrer"
+          >как установить</a
+        >.
       </p>
     {/if}
 
     {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-    <p class="privacy" class:local={p.local}>
-      {#if p.local}
+    <p class="privacy" class:local>
+      {#if local}
         Текст останется на этом компьютере: модель работает локально.
       {:else}
-        При оценке текст будет отправлен: {destination}.
+        При оценке текст будет отправлен: {target}.
       {/if}
     </p>
     <p class="note">

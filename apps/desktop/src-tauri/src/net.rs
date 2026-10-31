@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// Больше этого страница не загружается: обычная статья занимает сотни килобайт.
 const MAX_PAGE: usize = 20 * 1024 * 1024;
-const MAX_RESPONSE: usize = 10 * 1024 * 1024;
+pub(crate) const MAX_RESPONSE: usize = 10 * 1024 * 1024;
 const USER_AGENT: &str = concat!(
     "PlainRussian/",
     env!("CARGO_PKG_VERSION"),
@@ -65,8 +65,8 @@ pub struct HttpRequest {
 
 #[derive(Debug, Serialize)]
 pub struct HttpResponse {
-    status: u16,
-    body: String,
+    pub(crate) status: u16,
+    pub(crate) body: String,
 }
 
 /// Запрос к API LLM-провайдера. Только GET и POST, только http и https.
@@ -103,7 +103,7 @@ fn http_url(raw: &str) -> Result<Url, String> {
     }
 }
 
-fn client(timeout: Duration, url: &Url) -> Result<reqwest::Client, String> {
+pub(crate) fn client(timeout: Duration, url: &Url) -> Result<reqwest::Client, String> {
     let mut builder = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(timeout);
@@ -130,7 +130,7 @@ fn is_loopback(url: &Url) -> bool {
     }
 }
 
-fn describe(e: &reqwest::Error, url: &Url) -> String {
+pub(crate) fn describe(e: &reqwest::Error, url: &Url) -> String {
     let host = url.host_str().unwrap_or("сервер");
     if e.is_timeout() {
         format!("{host} не ответил вовремя")
@@ -148,7 +148,7 @@ fn describe(e: &reqwest::Error, url: &Url) -> String {
     }
 }
 
-async fn read_limited(
+pub(crate) async fn read_limited(
     mut response: reqwest::Response,
     limit: usize,
     url: &Url,

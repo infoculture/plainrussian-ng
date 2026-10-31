@@ -12,10 +12,10 @@ export async function readFileText(file: File): Promise<string> {
   switch (ext) {
     case 'txt':
     case 'md':
-      return file.text();
+      return decode(new Uint8Array(await file.arrayBuffer()), false);
     case 'html':
     case 'htm':
-      return htmlToText(await file.text());
+      return htmlToText(decode(new Uint8Array(await file.arrayBuffer()), true));
     case 'docx':
       return docxToText(await file.arrayBuffer());
     case 'pdf':
@@ -25,8 +25,34 @@ export async function readFileText(file: File): Promise<string> {
   }
 }
 
+/**
+ * Кодировка: по BOM, у HTML — из `<meta charset>`; иначе UTF-8, а файл не в UTF-8
+ * читается как windows-1251, как в командной строке и в настольном приложении.
+ */
+export function decode(bytes: Uint8Array, html: boolean): string {
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes);
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes);
+  if (html) {
+    const head = new TextDecoder('latin1').decode(bytes.subarray(0, 4096));
+    const label = /<meta[^>]+charset\s*=\s*["']?([\w-]+)/i.exec(head)?.[1];
+    if (label) {
+      try {
+        return new TextDecoder(label).decode(bytes);
+      } catch {
+        // Неизвестная кодировка: определяем сами.
+      }
+    }
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder('windows-1251').decode(bytes);
+  }
+}
+
 const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'NAV', 'HEADER', 'FOOTER', 'ASIDE']);
-const LINE = new Set(['BR', 'LI', 'TR', 'DT', 'DD']);
+const LINE = new Set(['BR', 'LI', 'TR', 'DT', 'DD', 'CAPTION', 'FIGCAPTION']);
+const CELL = new Set(['TD', 'TH']);
 const PARAGRAPH = new Set([
   'P', 'DIV', 'SECTION', 'ARTICLE', 'MAIN', 'BLOCKQUOTE', 'PRE', 'TABLE', 'UL', 'OL', 'DL',
   'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
@@ -48,10 +74,12 @@ function htmlToText(html: string): string {
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         const tag = (child as Element).tagName;
         if (SKIP.has(tag)) continue;
-        const sep = PARAGRAPH.has(tag) ? '\n\n' : LINE.has(tag) ? '\n' : '';
-        out.push(sep);
+        // Абзац отделяется пустой строкой с обеих сторон, строка списка — переводом строки
+        // после себя (иначе пункты разделились бы пустыми строками), ячейка — пробелом.
+        const paragraph = PARAGRAPH.has(tag);
+        if (paragraph) out.push('\n\n');
         walk(child, pre || tag === 'PRE');
-        out.push(sep);
+        out.push(paragraph ? '\n\n' : LINE.has(tag) ? '\n' : CELL.has(tag) ? ' ' : '');
       }
     }
   };

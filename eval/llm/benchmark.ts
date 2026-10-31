@@ -51,7 +51,7 @@ if (!model) fail('--model: укажите модель');
 const envName = KEY_ENV[id];
 const apiKey = envName ? (process.env[envName] ?? '') : '';
 if (p.key === 'required' && !apiKey) fail(`Нужен ключ в переменной ${envName}`);
-const req = { provider: id, model, apiKey, baseUrl: args['base-url'] ?? p.baseUrl };
+const req = { provider: id, model, apiKey, baseUrl: args['base-url'] ?? p.baseUrl, scope: '' };
 
 // corpus.csv: path,grade,fit,title,url,note — в названиях бывают запятые в кавычках,
 // но нужны только первые три колонки, а в них запятых нет.

@@ -4,4 +4,3 @@ dev-dist/
 src/wasm/pkg/
 dist-desktop/
 src/wasm/clarity-pkg/
-public/dict/

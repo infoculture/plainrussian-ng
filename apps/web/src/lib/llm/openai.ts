@@ -1,9 +1,9 @@
-// Оценка через OpenAI-совместимый API: OpenAI, OpenRouter, Ollama, LM Studio и другие.
+// Оценка через OpenAI-совместимый API: OpenAI, OpenRouter, GigaChat, Ollama, LM Studio и другие.
 import { z } from 'zod';
 import { invoke, isDesktop } from '../platform.ts';
 import { SYSTEM_PROMPT, userMessage } from './assessment.ts';
 import { Assessment } from './schema.ts';
-import { LlmError, provider, type ProviderId, type Request } from './providers.ts';
+import { LlmError, provider, runsLocally, type ProviderId, type Request } from './providers.ts';
 
 const SCHEMA = (() => {
   const { $schema: _, ...schema } = z.toJSONSchema(Assessment);
@@ -38,8 +38,14 @@ interface Raw {
  * ни CORS (Ollama не пускает чужие источники), ни CSP. Отменить его нельзя,
  * поэтому отменённый ответ отбрасывает вызывающий код.
  */
-async function send(url: string, req: Request, body?: string, signal?: AbortSignal): Promise<Raw> {
+async function send(path: string, req: Request, body?: string, signal?: AbortSignal): Promise<Raw> {
   const method = body === undefined ? 'GET' : 'POST';
+  if (req.provider === 'gigachat') {
+    // Ключ авторизации обменивается на токен доступа в Rust: src-tauri/src/gigachat.rs.
+    const request = { authKey: req.apiKey.trim(), scope: req.scope, method, path, body };
+    return invoke<Raw>('gigachat_request', { request });
+  }
+  const url = `${req.baseUrl.trim().replace(/\/$/, '')}${path}`;
   const h = headers(req, body !== undefined);
   if (isDesktop) {
     return invoke<Raw>('http_request', { request: { method, url, headers: h, body } });
@@ -51,14 +57,14 @@ async function send(url: string, req: Request, body?: string, signal?: AbortSign
 async function call(path: string, req: Request, body?: string, signal?: AbortSignal): Promise<unknown> {
   let raw: Raw;
   try {
-    raw = await send(`${req.baseUrl.trim().replace(/\/$/, '')}${path}`, req, body, signal);
+    raw = await send(path, req, body, signal);
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') throw e;
     // Rust возвращает готовое сообщение строкой.
     if (isDesktop) throw new LlmError(String(e));
     const p = provider(req.provider);
     throw new LlmError(
-      p.local
+      runsLocally(p, req.baseUrl)
         ? [`Не удалось соединиться с ${req.baseUrl}. Запущен ли сервер?`, CORS_HINTS[p.id]].filter(Boolean).join(' ')
         : `Не удалось соединиться с ${p.title}. Проверьте подключение к интернету.`,
     );
@@ -90,7 +96,11 @@ export async function assessWithOpenAI(text: string, req: Request, signal?: Abor
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userMessage(text) },
     ],
-    response_format: { type: 'json_schema', json_schema: { name: 'assessment', strict: true, schema: SCHEMA } },
+    // GigaChat ждёт схему прямо в response_format, остальные — внутри json_schema, как OpenAI.
+    response_format:
+      req.provider === 'gigachat'
+        ? { type: 'json_schema', schema: SCHEMA, strict: true }
+        : { type: 'json_schema', json_schema: { name: 'assessment', strict: true, schema: SCHEMA } },
   };
   const data = await call('/chat/completions', req, JSON.stringify(body), signal);
   const completion = Completion.safeParse(data);

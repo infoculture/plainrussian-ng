@@ -1,6 +1,6 @@
 #!/bin/sh
 # Собирает WASM-модули ядра и проверок ясного языка с JS-обёртками в src/wasm
-# и кладёт сжатый словарь rumorph в public/dict.
+# и кладёт рядом сжатый словарь rumorph (src/wasm/clarity-pkg/ru.dict.gz).
 set -eu
 cd "$(dirname "$0")/../../.."
 # cargo из Homebrew не видит цель wasm32, поэтому ставим тулчейн rustup первым в PATH.
@@ -19,8 +19,10 @@ DICT=$(cargo metadata --format-version 1 | node -e '
     const p = JSON.parse(s).packages.find((p) => p.name === "rumorph-dict-ru");
     console.log(require("path").join(require("path").dirname(p.manifest_path), "ru.dict"));
   });')
-OUT=apps/web/public/dict/ru.dict.gz
+OUT=apps/web/src/wasm/clarity-pkg/ru.dict.gz
 mkdir -p "$(dirname "$OUT")"
 if [ ! "$OUT" -nt "$DICT" ]; then
-  gzip -9 -c "$DICT" > "$OUT"
+  # Сжимает Node, а не gzip: так скрипт работает и там, где gzip нет (Windows).
+  node -e 'const fs = require("fs"), zlib = require("zlib");
+    fs.writeFileSync(process.argv[2], zlib.gzipSync(fs.readFileSync(process.argv[1]), { level: 9 }));' "$DICT" "$OUT"
 fi

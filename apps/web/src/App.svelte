@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { persistLlmSettings } from './lib/llm/store.svelte.ts';
+  import { openLinksInBrowser } from './lib/platform';
   import { REPO_URL } from './lib/project';
   import About from './components/About.svelte';
   import Home from './components/Home.svelte';
@@ -13,6 +14,7 @@
 
   onMount(() => {
     persistLlmSettings();
+    openLinksInBrowser();
     const onHash = () => {
       route = location.hash;
       window.scrollTo(0, 0);

@@ -1,0 +1,32 @@
+[package]
+name = "pr-server"
+description = "HTTP API в формате старого plainrussian.ru (/api/1.0/ru/measure/)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "plainrussian-server"
+path = "src/main.rs"
+
+[dependencies]
+pr-core = { workspace = true, features = ["clarity"] }
+# Словарь rumorph встроен (feature bundled по умолчанию): для проверок ясного языка.
+rumorph = "0.4"
+serde.workspace = true
+serde_json.workspace = true
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+tower-http = { version = "0.7", features = ["cors", "limit"] }
+reqwest = { version = "0.13", features = ["gzip"] }
+scraper = "0.29"
+serde_urlencoded = "0.7"
+encoding_rs = "0.8"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+# Без float_roundtrip serde_json разбирает некоторые числа с ошибкой в последнем знаке.
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+tower = { version = "0.5", features = ["util"] }

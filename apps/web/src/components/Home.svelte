@@ -1,6 +1,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { Analyzer } from '../lib/analyzer';
+  // В имени файла сборки — хеш содержимого: новый словарь не застрянет в кеше.
+  import dictionaryAsset from '../wasm/clarity-pkg/ru.dict.gz?url';
   import { clarityEnabled, setClarityEnabled } from '../lib/clarity';
   import { ACCEPT, ImportError, pageToText, readFileText } from '../lib/import';
   import { fetchPage, isDesktop } from '../lib/platform';
@@ -20,6 +22,7 @@
   // Оценка формулами — для сравнения с оценкой LLM.
   let formula = $derived(analysis?.result.measurement.indexes?.average.value ?? null);
   let error = $state('');
+  let analyzeError = $state('');
   let dragging = $state(false);
   // Открытие по ссылке есть только в настольном приложении: браузеру мешает CORS.
   let urlOpen = $state(false);
@@ -29,7 +32,7 @@
   let fileInput: HTMLInputElement;
 
   // Проверки ясного языка: словарь загружается при включении и затем лежит в кеше.
-  const dictionaryUrl = new URL('dict/ru.dict.gz', document.baseURI).href;
+  const dictionaryUrl = new URL(dictionaryAsset, document.baseURI).href;
   let clarityState = $state<'off' | 'loading' | 'ready' | 'error'>(clarityEnabled() ? 'loading' : 'off');
   let clarity = $state<{ text: string; report: ClarityReport } | null>(null);
   let clarityError = $state('');
@@ -72,6 +75,7 @@
     if (!current.trim()) {
       analyzer.cancel();
       analysis = null;
+      analyzeError = '';
       busy = false;
       // Пустой текст тоже проверяется: так при включённой проверке загрузится словарь,
       // а панель покажет, что ждёт текста.
@@ -80,11 +84,20 @@
     }
     busy = true;
     timer = setTimeout(async () => {
-      const result = await analyzer.analyze(current);
-      if (result) {
-        analysis = { text: current, result };
+      try {
+        const result = await analyzer.analyze(current);
+        if (result) {
+          analysis = { text: current, result };
+          analyzeError = '';
+          busy = false;
+          runClarity(current);
+        }
+      } catch (e) {
+        // Если текст за это время сменился, расчёт для нового уже запущен.
+        if (text !== current) return;
+        analysis = null;
         busy = false;
-        runClarity(current);
+        analyzeError = `Не удалось оценить текст: ${(e as Error).message}`;
       }
     }, 200);
   });
@@ -180,8 +193,8 @@
       spellcheck="false"
     ></textarea>
     <div class="status">
-      {#if error}
-        <span class="error" role="alert">{error}</span>
+      {#if error || analyzeError}
+        <span class="error" role="alert">{error || analyzeError}</span>
       {:else if busy}
         <span>Считаю…</span>
       {:else if text}

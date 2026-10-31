@@ -11,6 +11,8 @@ export interface ProviderSettings {
   baseUrl: string;
   apiKey: string;
   rememberKey: boolean;
+  /** Тип доступа, только для GigaChat. */
+  scope: string;
 }
 
 export interface Settings {
@@ -21,7 +23,13 @@ export interface Settings {
 function defaults(): Settings {
   const providers = {} as Record<ProviderId, ProviderSettings>;
   for (const p of PROVIDERS) {
-    providers[p.id] = { model: p.defaultModel, baseUrl: p.baseUrl, apiKey: '', rememberKey: false };
+    providers[p.id] = {
+      model: p.defaultModel,
+      baseUrl: p.baseUrl,
+      apiKey: '',
+      rememberKey: false,
+      scope: p.scopes?.[0].id ?? '',
+    };
   }
   return { provider: 'anthropic', providers };
 }
@@ -102,5 +110,11 @@ function syncSecrets(settings: Settings): void {
 export function toRequest(settings: Settings): Request {
   const s = settings.providers[settings.provider];
   const p = provider(settings.provider);
-  return { provider: p.id, model: s.model, apiKey: s.apiKey, baseUrl: p.editableUrl ? s.baseUrl : p.baseUrl };
+  return {
+    provider: p.id,
+    model: s.model,
+    apiKey: s.apiKey,
+    baseUrl: p.editableUrl ? s.baseUrl : p.baseUrl,
+    scope: s.scope,
+  };
 }

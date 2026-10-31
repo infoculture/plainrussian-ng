@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ISSUE_KINDS, clampGrade, gradeLabel, quoteFound, type Assessment } from '../lib/llm/assessment.ts';
-  import { LlmError, assess, provider } from '../lib/llm/providers.ts';
+  import { LlmError, assess, destination, provider, runsLocally } from '../lib/llm/providers.ts';
   import { toRequest } from '../lib/llm/settings.ts';
   import { isConfigured, llm } from '../lib/llm/store.svelte.ts';
   import { plural } from '../lib/segments';
@@ -24,29 +24,26 @@
 
   let grade = $derived(result ? clampGrade(result.assessment.grade) : 0);
   let stale = $derived(result !== null && result.text !== text);
-  let destination = $derived.by(() => {
-    if (p.id !== 'custom') return p.title;
-    try {
-      return new URL(ps.baseUrl).host;
-    } catch {
-      return 'указанный сервис';
-    }
-  });
+  let target = $derived(destination(p, ps.baseUrl));
+  let local = $derived(runsLocally(p, ps.baseUrl));
 
   async function run() {
     error = '';
     const controller = new AbortController();
     running = controller;
     const started = performance.now();
+    // Подпись берётся до запроса: пока он идёт, в настройках могут выбрать другую модель.
     const current = text;
+    const title = p.title;
+    const model = ps.model;
     try {
       const assessment = await assess(current, toRequest(llm), controller.signal);
       // В настольном приложении запрос не прерывается, отменённый ответ просто отбрасываем.
       if (controller.signal.aborted) return;
       result = {
         text: current,
-        title: p.title,
-        model: ps.model,
+        title,
+        model,
         seconds: (performance.now() - started) / 1000,
         assessment,
       };
@@ -68,11 +65,11 @@
       <a href="#settings">Подключить модель</a>
     </p>
   {:else}
-    <p class="privacy" class:local={p.local}>
-      {#if p.local}
+    <p class="privacy" class:local>
+      {#if local}
         {p.title}, {ps.model}: текст останется на этом компьютере.
       {:else}
-        {ps.model}: текст ({text.length.toLocaleString('ru-RU')} знаков) будет отправлен: {destination}.
+        {ps.model}: текст ({text.length.toLocaleString('ru-RU')} знаков) будет отправлен: {target}.
       {/if}
       <a href="#settings">Изменить</a>
     </p>
@@ -81,7 +78,15 @@
         {running ? 'Оцениваю…' : 'Оценить'}
       </button>
       {#if running}
-        <button type="button" class="secondary" onclick={() => running?.abort()}>Отменить</button>
+        <!-- Запрос из настольного приложения не прерывается: панель просто перестаёт его ждать. -->
+        <button
+          type="button"
+          class="secondary"
+          onclick={() => {
+            running?.abort();
+            running = null;
+          }}>Отменить</button
+        >
       {/if}
     </div>
   {/if}
