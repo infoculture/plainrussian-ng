@@ -3,18 +3,30 @@ import { z } from 'zod';
 import { invoke, isDesktop } from '../platform.ts';
 import { SYSTEM_PROMPT, userMessage } from './assessment.ts';
 import { Assessment } from './schema.ts';
-import { LlmError, provider, type Request } from './providers.ts';
+import { LlmError, provider, type ProviderId, type Request } from './providers.ts';
 
 const SCHEMA = (() => {
   const { $schema: _, ...schema } = z.toJSONSchema(Assessment);
   return schema;
 })();
 
-function headers(req: Request): Record<string, string> {
-  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+/**
+ * Content-Type только у запроса с телом: GET без него и без ключа браузер шлёт
+ * сразу, без предварительного OPTIONS, который LM Studio без CORS не понимает.
+ */
+function headers(req: Request, json: boolean): Record<string, string> {
+  const h: Record<string, string> = json ? { 'Content-Type': 'application/json' } : {};
   if (req.apiKey.trim()) h.Authorization = `Bearer ${req.apiKey.trim()}`;
   return h;
 }
+
+/** Что мешает браузеру достучаться до локального сервера, кроме того, что он не запущен. */
+const CORS_HINTS: Partial<Record<ProviderId, string>> = {
+  lmstudio:
+    'Если запущен, включите CORS: в LM Studio на вкладке Developer откройте настройки сервера ' +
+    'и включите Enable CORS (или запустите сервер командой lms server start --cors).',
+  ollama: 'Для Ollama на опубликованном сайте нужно разрешить его адрес в переменной OLLAMA_ORIGINS.',
+};
 
 interface Raw {
   status: number;
@@ -28,10 +40,11 @@ interface Raw {
  */
 async function send(url: string, req: Request, body?: string, signal?: AbortSignal): Promise<Raw> {
   const method = body === undefined ? 'GET' : 'POST';
+  const h = headers(req, body !== undefined);
   if (isDesktop) {
-    return invoke<Raw>('http_request', { request: { method, url, headers: headers(req), body } });
+    return invoke<Raw>('http_request', { request: { method, url, headers: h, body } });
   }
-  const response = await fetch(url, { method, headers: headers(req), body, signal });
+  const response = await fetch(url, { method, headers: h, body, signal });
   return { status: response.status, body: await response.text() };
 }
 
@@ -46,8 +59,7 @@ async function call(path: string, req: Request, body?: string, signal?: AbortSig
     const p = provider(req.provider);
     throw new LlmError(
       p.local
-        ? `Не удалось соединиться с ${req.baseUrl}. Запущен ли сервер? Для Ollama на опубликованном сайте ` +
-            'нужно разрешить его адрес в переменной OLLAMA_ORIGINS.'
+        ? [`Не удалось соединиться с ${req.baseUrl}. Запущен ли сервер?`, CORS_HINTS[p.id]].filter(Boolean).join(' ')
         : `Не удалось соединиться с ${p.title}. Проверьте подключение к интернету.`,
     );
   }
