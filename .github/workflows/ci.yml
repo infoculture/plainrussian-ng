@@ -1,0 +1,142 @@
+# Проверки на каждый push в main и на каждый pull request.
+# Тексты корпуса в репозиторий не входят, поэтому golden-тесты по корпусу здесь
+# пропускаются; эталонные примеры, юнит-тесты и тесты программ выполняются.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Должна совпадать с версией крейта wasm-bindgen в crates/pr-wasm*/Cargo.toml.
+  WASM_BINDGEN: 0.2.130
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      # pr-py собирается с pyo3, которому нужен Python.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: Swatinem/rust-cache@v2
+      - name: Формат
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Тесты
+        run: cargo test --workspace
+
+  web:
+    name: Веб-приложение
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ env.WASM_BINDGEN }}
+      - name: Clippy для WebAssembly
+        run: cargo clippy -p pr-wasm -p pr-wasm-clarity --target wasm32-unknown-unknown -- -D warnings
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Зависимости
+        working-directory: apps/web
+        run: npm ci
+      - name: Сборка (WASM, проверка типов, Vite)
+        working-directory: apps/web
+        run: npm run build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: site
+          path: apps/web/dist
+          retention-days: 14
+
+  python:
+    name: Python-пакет и MCP-сервер
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: Swatinem/rust-cache@v2
+      - name: Установка пакета
+        run: pip install "./crates/pr-py[mcp]" pytest anyio
+      - name: Тесты
+        run: pytest crates/pr-py/tests
+
+  desktop:
+    name: Настольное приложение (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            . -> target
+            apps/desktop/src-tauri -> target
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ env.WASM_BINDGEN }}
+      - name: Системные библиотеки Tauri
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev libxdo-dev libssl-dev libdbus-1-dev patchelf
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            apps/web/package-lock.json
+            apps/desktop/package-lock.json
+      - name: Веб-часть для приложения
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run build:desktop
+      - name: Тесты Rust-части
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Сборка пакетов .deb и .AppImage
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npx tauri build --bundles deb,appimage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-linux
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          retention-days: 14

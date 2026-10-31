@@ -44,6 +44,11 @@ cargo test --workspace
 
 Для сборки `crates/pr-py` нужен Python 3.9 или новее: pyo3 ищет его при компиляции.
 
+На GitHub то же самое выполняет `.github/workflows/ci.yml`: Rust на Linux, macOS и Windows,
+сборка сайта (артефакт `site`), Python-пакет с MCP-сервером и настольное приложение для Linux
+(артефакт `desktop-linux` с `.deb` и `.AppImage`). Golden-тесты по корпусу там пропускаются:
+текстов корпуса в репозитории нет.
+
 Golden-тесты сравнивают Rust с Python-оригиналами без допуска: старый алгоритм —
 с `metric.py`, деление на предложения — с razdel 0.5.0. Эталоны лежат в
 `crates/pr-core/tests/golden`.
