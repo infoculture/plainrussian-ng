@@ -61,13 +61,18 @@ export async function loadSecrets(settings: Settings): Promise<void> {
   if (!isDesktop) return;
   for (const p of PROVIDERS) {
     const s = settings.providers[p.id];
-    if (!s.rememberKey) {
-      // Без «Запомнить» ключа в хранилище нет: при снятии галочки он удаляется сразу.
+    if (p.key === 'none') {
       synced[p.id] = '';
       continue;
     }
+    // Хранилище читается и без «Запомнить»: настройки WebView могли стереть, а ключ
+    // в хранилище остался. Он попадает туда только по «Запомнить», так что галочка
+    // восстанавливается, а не остаётся ключ, о котором интерфейс не знает.
     const key = await invoke<string | null>('secret_get', { name: p.id }).catch(() => null);
-    if (key && !s.apiKey) s.apiKey = key;
+    if (key) {
+      if (!s.apiKey) s.apiKey = key;
+      s.rememberKey = true;
+    }
     synced[p.id] = key ?? '';
   }
   secretsLoaded = true;

@@ -3,6 +3,12 @@ import type { Request, Response } from './worker';
 
 type Kind = 'analyze' | 'clarity';
 
+interface Job {
+  request: Request;
+  resolve: (value: unknown) => void;
+  reject: (e: Error) => void;
+}
+
 /** Клиент Web Worker с ядром. Ответ на устаревший запрос отбрасывается. */
 export class Analyzer {
   private worker: Worker | null = null;
@@ -10,6 +16,11 @@ export class Analyzer {
   // У оценки и у проверок свои последние запросы: они не вытесняют друг друга.
   private lastId: Record<Kind, number> = { analyze: 0, clarity: 0 };
   private pending = new Map<number, { resolve: (value: unknown) => void; reject: (e: Error) => void }>();
+  // В потоке не больше одного расчёта каждого вида. Пока он идёт, следующий запрос
+  // ждёт здесь, а более новый вытесняет его: иначе при наборе длинного текста поток
+  // считал бы подряд все промежуточные версии.
+  private busy: Record<Kind, boolean> = { analyze: false, clarity: false };
+  private queued: Record<Kind, Job | null> = { analyze: null, clarity: null };
 
   private spawn(): Worker {
     const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -32,8 +43,9 @@ export class Analyzer {
       worker.terminate();
       if (this.worker === worker) this.worker = null;
       const error = new Error(event.message || 'поток с ядром оценки остановился');
-      for (const waiter of this.pending.values()) waiter.reject(error);
+      const waiters = [...this.pending.values()];
       this.pending.clear();
+      for (const waiter of waiters) waiter.reject(error);
     };
     return worker;
   }
@@ -41,6 +53,8 @@ export class Analyzer {
   /** Отменяет текущий расчёт оценки: его ответ придёт как null. Проверки не трогает. */
   cancel(): void {
     this.lastId.analyze = ++this.nextId;
+    this.queued.analyze?.resolve(null);
+    this.queued.analyze = null;
   }
 
   /** Возвращает null, если за время расчёта пришёл более новый текст. */
@@ -57,12 +71,38 @@ export class Analyzer {
   }
 
   private send(request: Request): Promise<unknown> {
+    const kind = request.type;
     const id = ++this.nextId;
-    this.lastId[request.type] = id;
+    this.lastId[kind] = id;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.worker ??= this.spawn();
-      this.worker.postMessage({ ...request, id });
+      const job = { request: { ...request, id }, resolve, reject };
+      this.queued[kind]?.resolve(null);
+      this.queued[kind] = null;
+      if (this.busy[kind]) this.queued[kind] = job;
+      else this.dispatch(job);
     });
+  }
+
+  private dispatch(job: Job): void {
+    const kind = job.request.type;
+    this.busy[kind] = true;
+    const done = () => {
+      this.busy[kind] = false;
+      const next = this.queued[kind];
+      this.queued[kind] = null;
+      if (next) this.dispatch(next);
+    };
+    this.pending.set(job.request.id, {
+      resolve: (value) => {
+        job.resolve(value);
+        done();
+      },
+      reject: (e) => {
+        job.reject(e);
+        done();
+      },
+    });
+    this.worker ??= this.spawn();
+    this.worker.postMessage(job.request);
   }
 }

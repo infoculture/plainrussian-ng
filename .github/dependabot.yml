@@ -1,0 +1,11 @@
+# Действия в workflow закреплены по SHA коммита: так их нельзя подменить, передвинув
+# тег. Dependabot раз в неделю предлагает обновить SHA и номер версии в комментарии.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

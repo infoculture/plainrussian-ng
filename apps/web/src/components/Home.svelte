@@ -17,7 +17,9 @@
 
   let text = $state('');
   // Разметка ссылается на смещения в том тексте, по которому она посчитана.
-  let analysis = $state<{ text: string; result: Analysis } | null>(null);
+  // Результаты только заменяются целиком: глубокий $state над разметкой длинного текста
+  // стоил бы памяти и времени.
+  let analysis = $state.raw<{ text: string; result: Analysis } | null>(null);
   let busy = $state(false);
   // Оценка формулами — для сравнения с оценкой LLM.
   let formula = $derived(analysis?.result.measurement.indexes?.average.value ?? null);
@@ -34,7 +36,7 @@
   // Проверки ясного языка: словарь загружается при включении и затем лежит в кеше.
   const dictionaryUrl = new URL(dictionaryAsset, document.baseURI).href;
   let clarityState = $state<'off' | 'loading' | 'ready' | 'error'>(clarityEnabled() ? 'loading' : 'off');
-  let clarity = $state<{ text: string; report: ClarityReport } | null>(null);
+  let clarity = $state.raw<{ text: string; report: ClarityReport } | null>(null);
   let clarityError = $state('');
 
   // Функция, а не сравнение на месте: за время await проверку могут выключить.
