@@ -114,6 +114,10 @@ jobs:
           targets: ${{ matrix.targets }}
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
+          # Свой префикс: у задания desktop в ci.yml тот же id, но собирает оно на
+          # ubuntu-latest, и объекты под новую glibc не линкуются на ubuntu-22.04.
+          prefix-key: v0-release
+          key: ${{ strategy.job-index }}
           workspaces: |
             . -> target
             apps/desktop/src-tauri -> target
