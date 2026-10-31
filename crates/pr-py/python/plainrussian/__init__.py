@@ -18,7 +18,7 @@ from . import _core
 
 __version__: str = _core.__version__
 
-__all__ = ["measure", "details", "sentenize", "measure_legacy", "__version__"]
+__all__ = ["measure", "details", "check_clarity", "sentenize", "measure_legacy", "__version__"]
 
 
 def measure(text: str) -> dict[str, Any]:
@@ -41,6 +41,21 @@ def details(text: str) -> dict[str, Any]:
     в порядке появления.
     """
     return json.loads(_core.details_json(text))
+
+
+def check_clarity(text: str) -> dict[str, Any]:
+    """Проверки ясного языка.
+
+    ``findings`` — найденные фрагменты по порядку: ``kind`` (``genitive_chain`` —
+    цепочка родительных падежей, ``nominalization`` — отглагольное существительное,
+    ``bureaucratese`` — канцеляризм, ``passive`` — страдательный залог,
+    ``abbreviation`` — аббревиатура), ``text`` и позиции ``start``/``end`` в строке.
+    ``counts`` — сколько найдено каждого вида, ``words`` — слов в тексте.
+
+    Морфологический словарь (rumorph, OpenCorpora, CC BY-SA 4.0) встроен в пакет
+    и читается при первом вызове.
+    """
+    return json.loads(_core.check_clarity_json(text))
 
 
 def sentenize(text: str) -> list[str]:

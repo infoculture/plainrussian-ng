@@ -116,3 +116,34 @@ fn text_without_words() {
         "-: в тексте нет слов"
     );
 }
+
+#[test]
+fn clarity_in_text_json_and_csv() {
+    let bureaucratic =
+        "В целях обеспечения реализации мероприятий осуществляется проведение мониторинга.";
+    let out = run(&["--clarity", "-"], Some(bureaucratic.as_bytes()));
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    assert!(
+        stdout.contains("ясный язык: цепочки родительных 1, отглагольные 2, канцеляризмы 3"),
+        "{stdout}"
+    );
+
+    let out = run(
+        &["--clarity", "--format", "json", "-"],
+        Some(bureaucratic.as_bytes()),
+    );
+    let line: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(line["clarity"]["counts"]["genitive_chain"], 1);
+    assert_eq!(line["clarity"]["findings"][0]["text"], "В целях");
+
+    let out = run(
+        &["--clarity", "--format", "csv", "-"],
+        Some(bureaucratic.as_bytes()),
+    );
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert!(
+        lines[0].ends_with(",genitive_chain,nominalization,bureaucratese,passive,abbreviation")
+    );
+    assert!(lines[1].ends_with(",1,2,3,0,0"), "{}", lines[1]);
+}

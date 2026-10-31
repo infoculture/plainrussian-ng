@@ -17,6 +17,8 @@ d = plainrussian.details(text)
 d["sentences"]       # [{"text": ..., "words": ...}, ...]
 d["complex_words"]   # [{"text": ..., "syllables": ...}, ...]
 
+plainrussian.check_clarity(text)    # канцелярит: цепочки родительных, отглагольные
+                                    # существительные, канцеляризмы, пассив, аббревиатуры
 plainrussian.sentenize(text)        # предложения по правилам razdel
 plainrussian.measure_legacy(text)   # ответ в формате старого API plainrussian.ru
 ```
@@ -27,8 +29,9 @@ plainrussian.measure_legacy(text)   # ответ в формате старог�
 pip install "plainrussian[mcp]"
 ```
 
-Инструменты `measure_readability` (оценка и показатели) и `find_hard_parts`
-(длинные предложения и сложные слова). Для Claude Desktop:
+Инструменты `measure_readability` (оценка и показатели), `find_hard_parts`
+(длинные предложения и сложные слова) и `check_plain_language` (приёмы канцелярита
+с примерами и советами). Для Claude Desktop:
 
 ```json
 {
@@ -40,4 +43,6 @@ pip install "plainrussian[mcp]"
 
 `plainrussian-mcp --http 127.0.0.1:9000` запускает сервер по Streamable HTTP.
 
-Лицензия CC0 1.0; деление на предложения перенесено из razdel (MIT).
+Лицензия CC0 1.0; деление на предложения перенесено из razdel (MIT). Для проверок
+ясного языка в пакет встроен морфологический словарь rumorph (OpenCorpora и Universal
+Dependencies, CC BY-SA 4.0).

@@ -25,7 +25,7 @@ def structured(result):
 async def test_tools_are_listed_as_read_only():
     async with Client(server) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
-    assert set(tools) == {"measure_readability", "find_hard_parts"}
+    assert set(tools) == {"measure_readability", "find_hard_parts", "check_plain_language"}
     assert all(t.annotations.read_only_hint for t in tools.values())
 
 
@@ -56,6 +56,17 @@ async def test_empty_text():
         data = structured(await client.call_tool("measure_readability", {"text": "..."}))
     assert "grade_years" not in data
     assert data["note"]
+
+
+@pytest.mark.anyio
+async def test_check_plain_language():
+    async with Client(server) as client:
+        data = structured(await client.call_tool("check_plain_language", {"text": TEXT}))
+    kinds = {k["kind"]: k for k in data["kinds"]}
+    assert kinds["genitive_chain"]["count"] >= 1
+    assert "эффективности деятельности органов исполнительной власти" in kinds["genitive_chain"]["examples"][1]
+    assert kinds["bureaucratese"]["examples"][0] == "В целях"
+    assert data["per_100_words"] > 10
 
 
 @pytest.fixture

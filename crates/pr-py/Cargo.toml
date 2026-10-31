@@ -11,7 +11,9 @@ name = "_core"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pr-core.workspace = true
+pr-core = { workspace = true, features = ["clarity"] }
+# Словарь rumorph встроен в модуль (feature bundled по умолчанию): около 16 МБ.
+rumorph = "0.4"
 serde.workspace = true
 serde_json.workspace = true
 # abi3: одно колесо для всех версий Python начиная с 3.9.

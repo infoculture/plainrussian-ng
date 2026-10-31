@@ -253,11 +253,11 @@ pub fn grade_label(value: f64) -> String {
     grade_text(value.max(1.0))
 }
 
-struct WordToken {
-    start: usize,
-    end: usize,
-    syllables: u64,
-    letters: u64,
+pub(crate) struct WordToken {
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) syllables: u64,
+    pub(crate) letters: u64,
 }
 
 /// Знак ударения и другие комбинирующие знаки не разрывают слово.
@@ -273,7 +273,7 @@ fn is_joiner(ch: char) -> bool {
     )
 }
 
-fn scan_words(chars: &[char]) -> Vec<WordToken> {
+pub(crate) fn scan_words(chars: &[char]) -> Vec<WordToken> {
     let mut words = Vec::new();
     let mut i = 0;
     while i < chars.len() {
@@ -378,10 +378,10 @@ fn count_numbers(chars: &[char]) -> u64 {
 }
 
 /// Перевод индексов символов в смещения UTF-16.
-struct Utf16Offsets(Vec<usize>);
+pub(crate) struct Utf16Offsets(Vec<usize>);
 
 impl Utf16Offsets {
-    fn new(chars: &[char]) -> Self {
+    pub(crate) fn new(chars: &[char]) -> Self {
         let mut offsets = Vec::with_capacity(chars.len() + 1);
         let mut pos = 0;
         offsets.push(0);
@@ -392,7 +392,7 @@ impl Utf16Offsets {
         Self(offsets)
     }
 
-    fn at(&self, char_index: usize) -> usize {
+    pub(crate) fn at(&self, char_index: usize) -> usize {
         self.0[char_index]
     }
 }

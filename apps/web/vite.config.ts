@@ -75,6 +75,15 @@ function pwa() {
       // версия ждёт, пока закроются все вкладки.
       skipWaiting: true,
       clientsClaim: true,
+      // Словарь для проверок ясного языка (7 МБ) не входит в предзагрузку:
+      // он скачивается, когда проверку включают, и дальше берётся из кеша.
+      runtimeCaching: [
+        {
+          urlPattern: /\/dict\/ru\.dict\.gz$/,
+          handler: 'CacheFirst',
+          options: { cacheName: 'dictionary', expiration: { maxEntries: 1 } },
+        },
+      ],
     },
   });
 }

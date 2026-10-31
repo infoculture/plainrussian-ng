@@ -1,9 +1,12 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { Analyzer } from '../lib/analyzer';
+  import { clarityEnabled, setClarityEnabled } from '../lib/clarity';
   import { ACCEPT, ImportError, pageToText, readFileText } from '../lib/import';
   import { fetchPage, isDesktop } from '../lib/platform';
   import { SAMPLES } from '../lib/samples';
-  import type { Analysis } from '../lib/types';
+  import type { Analysis, ClarityReport } from '../lib/types';
+  import ClarityPanel from './ClarityPanel.svelte';
   import Highlighted from './Highlighted.svelte';
   import LlmPanel from './LlmPanel.svelte';
   import Results from './Results.svelte';
@@ -25,6 +28,43 @@
   let source = $state<{ url: string; text: string } | null>(null);
   let fileInput: HTMLInputElement;
 
+  // Проверки ясного языка: словарь загружается при включении и затем лежит в кеше.
+  const dictionaryUrl = new URL('dict/ru.dict.gz', document.baseURI).href;
+  let clarityState = $state<'off' | 'loading' | 'ready' | 'error'>(clarityEnabled() ? 'loading' : 'off');
+  let clarity = $state<{ text: string; report: ClarityReport } | null>(null);
+  let clarityError = $state('');
+
+  // Функция, а не сравнение на месте: за время await проверку могут выключить.
+  const clarityOn = () => clarityState === 'loading' || clarityState === 'ready';
+
+  async function runClarity(current: string) {
+    if (!clarityOn()) return;
+    try {
+      const report = await analyzer.clarity(current, dictionaryUrl);
+      if (report && clarityOn()) {
+        clarity = { text: current, report };
+        clarityState = 'ready';
+      }
+    } catch (e) {
+      clarityState = 'error';
+      clarityError = (e as Error).message;
+      setClarityEnabled(false);
+    }
+  }
+
+  function enableClarity() {
+    setClarityEnabled(true);
+    clarityState = 'loading';
+    clarityError = '';
+    runClarity(text);
+  }
+
+  function disableClarity() {
+    setClarityEnabled(false);
+    clarityState = 'off';
+    clarity = null;
+  }
+
   let timer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
     const current = text;
@@ -33,6 +73,9 @@
       analyzer.cancel();
       analysis = null;
       busy = false;
+      // Пустой текст тоже проверяется: так при включённой проверке загрузится словарь,
+      // а панель покажет, что ждёт текста.
+      untrack(() => runClarity(current));
       return;
     }
     busy = true;
@@ -41,6 +84,7 @@
       if (result) {
         analysis = { text: current, result };
         busy = false;
+        runClarity(current);
       }
     }, 200);
   });
@@ -149,7 +193,11 @@
 
   {#if analysis}
     <section class="highlight-area" aria-label="Подсветка">
-      <Highlighted text={analysis.text} annotation={analysis.result.annotation} />
+      <Highlighted
+        text={analysis.text}
+        annotation={analysis.result.annotation}
+        clarity={clarity?.text === analysis.text ? clarity.report : null}
+      />
     </section>
   {/if}
 
@@ -159,6 +207,13 @@
     {:else}
       <p class="empty">Здесь появится оценка: уровень образования, нужный для понимания текста, и подробные показатели.</p>
     {/if}
+    <ClarityPanel
+      state={clarityState}
+      report={clarity?.text === text ? clarity.report : null}
+      error={clarityError}
+      onenable={enableClarity}
+      ondisable={disableClarity}
+    />
     <LlmPanel {text} {formula} />
     <p class="note"><a href="#about">Как считается оценка</a></p>
   </aside>

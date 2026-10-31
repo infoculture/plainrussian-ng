@@ -6,13 +6,16 @@
 
 ## Состояние
 
-Фаза 5: командная строка, Python-пакет и MCP-сервер на том же ядре.
+Фаза 6: проверки ясного языка с морфологическим анализом — на сайте, в приложении,
+командной строке, Python и MCP.
 
 - `crates/pr-core` — ядро:
   - `readability` — текущий алгоритм: предложения по правилам razdel, слова с дефисами,
     слоги по гласным любого регистра, пять формул с новыми коэффициентами и их среднее
     как главная оценка; версия калибровки входит в каждый результат;
   - `sentenize` — перенос `razdel.sentenize` на Rust (лицензия MIT, см. `third_party/razdel`);
+  - `clarity` (feature `clarity`) — проверки ясного языка на морфологии
+    [rumorph](https://github.com/SergeyShk/ruMorph) (см. `third_party/rumorph`);
   - `legacy` — старый plainrussian.ru один в один: те же счётчики, формулы и формат ответа
     `/api/1.0/ru/measure/`, вместе с ошибками подсчёта.
 - `crates/pr-cli` — команда `plainrussian`: оценка файлов, каталогов и стандартного ввода,
@@ -21,6 +24,8 @@
   заменяет старые `textmetric` и `plainrussian-mcp`, spaCy больше не нужен.
 - `crates/pr-wasm` — обёртка для браузера: `analyze` (оценка и разметка для подсветки)
   и `measureLegacy` (ответ в формате старого API) возвращают JSON.
+- `crates/pr-wasm-clarity` — отдельный модуль проверок ясного языка для браузера: загружается
+  вместе со словарём, только когда проверку включают.
 - `apps/web` — веб-приложение (Vite, Svelte 5, TypeScript): оценка, подсветка сложных
   слов и длинных предложений, импорт txt, md, html, docx и pdf, офлайн, оценка с помощью
   LLM (`src/lib/llm`, подключается на странице настроек), страница «О проекте».
@@ -59,6 +64,33 @@ python3 -I tools/legacy-golden/generate.py
 path/to/venv/bin/python -I tools/razdel-golden/generate.py
 ```
 
+## Проверки ясного языка
+
+Помимо оценки сервис находит приёмы, которые утяжеляют текст:
+
+- цепочки из трёх и больше существительных в родительном падеже;
+- отглагольные существительные («проведение проверки» вместо «проверить»);
+- канцеляризмы: «в целях», «в рамках», «осуществлять», «являться», «мероприятие»;
+- страдательные причастия («утверждённый министерством»);
+- аббревиатуры (по словарю; набранные заглавными обычные слова не в счёт).
+
+Части речи и падежи определяет rumorph со словарём из OpenCorpora и Universal Dependencies
+(CC BY-SA 4.0); падеж выбирается с учётом соседних слов. Словарь — 16,5 МБ, 7,1 МБ в gzip.
+В программах (CLI, Python) он встроен; сайт и настольное приложение раздают его файлом
+`dict/ru.dict.gz`, который скачивается при включении проверки и дальше берётся из кеша
+service worker. Скрипт `apps/web/scripts/build-wasm.sh` кладёт его в `apps/web/public/dict`
+из исходников крейта; в git файла нет.
+
+Проверки различают тексты разной сложности. Находок на 100 слов по корпусу калибровки
+(`cargo run -p pr-core --features clarity --example clarity_stats -- <textsbygrade>`):
+
+| Уровень | Отглагольные | Страдательный | Цепочки | Канцеляризмы | Аббревиатуры |
+|---|---:|---:|---:|---:|---:|
+| 1–4 класс | 0,36 | 0,64 | 0,01 | 0,02 | 0,00 |
+| 5–9 класс | 0,95 | 0,80 | 0,04 | 0,02 | 0,02 |
+| 10–12 | 1,45 | 1,43 | 0,03 | 0,19 | 0,20 |
+| 15–17 (законы, госдокументы) | 8,72 | 3,26 | 1,17 | 2,24 | 0,58 |
+
 ## Командная строка
 
 ```bash
@@ -77,6 +109,10 @@ plainrussian --format csv тексты/ > оценки.csv
 cat статья.txt | plainrussian --format json -
 ```
 
+```bash
+plainrussian --clarity статья.txt
+```
+
 В каталогах берутся все `.txt` и `.md`. Файлы не в UTF-8 читаются как windows-1251.
 Сводка показывает оценку в пределах шкалы («меньше 1 года», «17 и больше лет»), в JSON
 и CSV — сырые значения формул.
@@ -93,12 +129,13 @@ cd crates/pr-py && maturin develop --release
 import plainrussian
 plainrussian.measure(text)["indexes"]["average"]   # оценка, лет обучения, и уровень
 plainrussian.details(text)["complex_words"]          # сложные слова строками
+plainrussian.check_clarity(text)["findings"]        # находки проверок ясного языка
 plainrussian.sentenize(text)                         # предложения по правилам razdel
 plainrussian.measure_legacy(text)                    # формат старого API
 ```
 
 MCP-сервер ставится с дополнением `mcp` (`pip install "plainrussian[mcp]"`) и даёт
-инструменты `measure_readability` и `find_hard_parts`. Запуск по stdio — `plainrussian-mcp`,
+инструменты `measure_readability`, `find_hard_parts` и `check_plain_language`. Запуск по stdio — `plainrussian-mcp`,
 по Streamable HTTP — `plainrussian-mcp --http 127.0.0.1:9000`. Подробнее в
 `crates/pr-py/README.md`.
 
@@ -247,4 +284,5 @@ node eval/llm/benchmark.ts --provider ollama --model <модель>
 
 CC0 1.0, как у исходного проекта. Исключение — перенос razdel в
 `crates/pr-core/src/sentenize.rs`: он распространяется по лицензии MIT, её текст в
-`third_party/razdel/LICENSE`.
+`third_party/razdel/LICENSE`. Морфологический анализатор rumorph — MIT, его словарь —
+CC BY-SA 4.0 (`third_party/rumorph`).

@@ -1,0 +1,16 @@
+[package]
+name = "pr-wasm-clarity"
+description = "WebAssembly-модуль проверок ясного языка: загружается по требованию вместе со словарём"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pr-core = { workspace = true, features = ["clarity"] }
+serde_json.workspace = true
+# Версия должна совпадать с wasm-bindgen-cli, иначе JS-обёртка не соберётся.
+wasm-bindgen = "=0.2.130"

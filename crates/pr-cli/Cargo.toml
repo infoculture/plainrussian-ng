@@ -11,7 +11,9 @@ name = "plainrussian"
 path = "src/main.rs"
 
 [dependencies]
-pr-core.workspace = true
+pr-core = { workspace = true, features = ["clarity"] }
+# Словарь rumorph встроен в программу (feature bundled по умолчанию): около 16 МБ.
+rumorph = "0.4"
 serde_json.workspace = true
 clap = { version = "4", features = ["derive"] }
 encoding_rs = "0.8"

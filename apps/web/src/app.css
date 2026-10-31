@@ -11,6 +11,11 @@
   --very-long: #f9d6d0;
   --warning: #8a4b00;
   --error: #b42318;
+  --c-genitive_chain: #ffd8a8;
+  --c-nominalization: #e9d5ff;
+  --c-bureaucratese: #ffc9c9;
+  --c-passive: #cfe3ff;
+  --c-abbreviation: #c3f0d0;
   color-scheme: light;
 }
 
@@ -28,6 +33,11 @@
     --very-long: #4a2622;
     --warning: #f0b45c;
     --error: #ff8a80;
+    --c-genitive_chain: #5a3a12;
+    --c-nominalization: #4c2f6b;
+    --c-bureaucratese: #5c2323;
+    --c-passive: #23415f;
+    --c-abbreviation: #1f4a2c;
     color-scheme: dark;
   }
 }
@@ -502,4 +512,106 @@ blockquote {
 
 .status span:last-child {
   overflow-wrap: anywhere;
+}
+
+.clarity {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.clarity h2 {
+  margin-top: 0;
+}
+
+.clarity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.clarity-list li {
+  margin-bottom: 12px;
+}
+
+.clarity-list p {
+  margin: 2px 0 0 22px;
+}
+
+.clarity-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.clarity-head .num {
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.clarity-genitive_chain {
+  background: var(--c-genitive_chain);
+}
+
+.clarity-nominalization {
+  background: var(--c-nominalization);
+}
+
+.clarity-bureaucratese {
+  background: var(--c-bureaucratese);
+}
+
+.clarity-passive {
+  background: var(--c-passive);
+}
+
+.clarity-abbreviation {
+  background: var(--c-abbreviation);
+}
+
+.legend [class^='clarity-'] {
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--text);
+}
+
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font-size: 14px;
+}
+
+.modes {
+  display: inline-flex;
+  margin: 8px 0 0;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.modes button {
+  border: 0;
+  border-radius: 0;
+  padding: 4px 12px;
+  font-size: 14px;
+  background: transparent;
+  color: var(--accent);
+}
+
+.modes button[aria-checked='true'] {
+  background: var(--accent);
+  color: var(--accent-text);
 }

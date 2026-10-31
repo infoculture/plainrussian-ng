@@ -46,3 +46,19 @@ def test_measure_legacy_keeps_old_api_shape():
 
 def test_version():
     assert plainrussian.__version__ == "0.1.0"
+
+
+def test_check_clarity():
+    text = "В целях обеспечения реализации мероприятий осуществляется проведение мониторинга в МВД."
+    r = plainrussian.check_clarity(text)
+    assert r["counts"]["genitive_chain"] == 1
+    assert r["counts"]["abbreviation"] == 1
+    for f in r["findings"]:
+        assert text[f["start"]:f["end"]] == f["text"]
+
+
+def test_check_clarity_offsets_with_emoji():
+    text = "👋 Данный документ."
+    f = plainrussian.check_clarity(text)["findings"][0]
+    assert text[f["start"]:f["end"]] == "Данный"
+

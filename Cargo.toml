@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/pr-core", "crates/pr-wasm", "crates/pr-cli", "crates/pr-py"]
+members = ["crates/pr-core", "crates/pr-wasm", "crates/pr-wasm-clarity", "crates/pr-cli", "crates/pr-py"]
 # Настольное приложение собирается отдельно: ему нужны WebView и системные библиотеки.
 exclude = ["apps/desktop/src-tauri"]
 
@@ -8,7 +8,8 @@ exclude = ["apps/desktop/src-tauri"]
 version = "0.1.0"
 edition = "2024"
 license = "CC0-1.0"
-rust-version = "1.85"
+# rumorph требует 1.88.
+rust-version = "1.88"
 
 [workspace.dependencies]
 pr-core = { path = "crates/pr-core" }

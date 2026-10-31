@@ -70,3 +70,21 @@ export interface Analysis {
   measurement: Measurement;
   annotation: Annotation;
 }
+
+// ---- Проверки ясного языка: `Clarity.check` ----
+
+export type ClarityKind = 'nominalization' | 'passive' | 'genitive_chain' | 'bureaucratese' | 'abbreviation';
+
+/** Смещения — в единицах UTF-16. */
+export interface Finding {
+  kind: ClarityKind;
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface ClarityReport {
+  words: number;
+  counts: Record<ClarityKind, number>;
+  findings: Finding[];
+}

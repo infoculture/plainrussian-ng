@@ -68,6 +68,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "bytemuck"
+version = "1.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
+
+[[package]]
 name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -129,6 +135,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crc32fast"
+version = "1.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ba106e844045ddc02c20768ac4b0b7cb45f2cc2ecbd833ac9f5dacb183c2055"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "crypto-common"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -156,6 +171,12 @@ checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
 dependencies = [
  "cfg-if",
 ]
+
+[[package]]
+name = "fst"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ab85b9b05e3978cc9a9cf8fea7f01b494e1a09ed3037e16ba39edc7a29eb61a"
 
 [[package]]
 name = "generic-array"
@@ -198,6 +219,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "memmap2"
+version = "0.9.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b0ca1155a9ecc25aa12e8313a119f32edf0255fea2f44839c4ac0a12b2ac157"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -222,6 +252,7 @@ dependencies = [
  "clap",
  "encoding_rs",
  "pr-core",
+ "rumorph",
  "serde_json",
 ]
 
@@ -229,6 +260,7 @@ dependencies = [
 name = "pr-core"
 version = "0.1.0"
 dependencies = [
+ "rumorph",
  "serde",
  "serde_json",
  "sha2",
@@ -240,6 +272,7 @@ version = "0.1.0"
 dependencies = [
  "pr-core",
  "pyo3",
+ "rumorph",
  "serde",
  "serde_json",
 ]
@@ -250,6 +283,15 @@ version = "0.1.0"
 dependencies = [
  "pr-core",
  "serde",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "pr-wasm-clarity"
+version = "0.1.0"
+dependencies = [
+ "pr-core",
  "serde_json",
  "wasm-bindgen",
 ]
@@ -328,6 +370,25 @@ checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "rumorph"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da255bc622696e72abda7d47c5ba95f56d923d31e187432d052737d3621e57b3"
+dependencies = [
+ "bytemuck",
+ "crc32fast",
+ "fst",
+ "memmap2",
+ "rumorph-dict-ru",
+]
+
+[[package]]
+name = "rumorph-dict-ru"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a0e57c51669c221a9caea70dddb8247b454d2e992f71374b65ba673e982d7b5"
 
 [[package]]
 name = "rustversion"

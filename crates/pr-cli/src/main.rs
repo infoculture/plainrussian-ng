@@ -3,12 +3,14 @@
 //!     plainrussian статья.txt                  краткая сводка
 //!     plainrussian --format csv тексты/ > a.csv все .txt и .md в каталоге, таблицей
 //!     cat статья.txt | plainrussian --format json -
+//!     plainrussian --clarity статья.txt        плюс проверки ясного языка
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, ValueEnum};
+use pr_core::clarity::{self, Dictionary, Report};
 use pr_core::readability::{self, Measurement};
 
 #[derive(Parser)]
@@ -25,6 +27,11 @@ struct Args {
     /// Формат вывода: text — сводка для человека, json — по строке JSON на текст, csv — таблица.
     #[arg(short, long, value_enum, default_value_t = Format::Text)]
     format: Format,
+
+    /// Проверки ясного языка: отглагольные существительные, страдательный залог, цепочки
+    /// родительных падежей, канцеляризмы, аббревиатуры.
+    #[arg(short, long)]
+    clarity: bool,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -36,6 +43,8 @@ enum Format {
 
 const CSV_HEADER: &str = "path,average,grade,fk,cl,smog,dc,ari,sentences,words,syllables,\
 letters,complex_words,numbers,chars,calibration";
+const CSV_CLARITY_HEADER: &str =
+    ",genitive_chain,nominalization,bureaucratese,passive,abbreviation";
 
 fn main() -> ExitCode {
     let args = Args::parse();
@@ -48,10 +57,19 @@ fn main() -> ExitCode {
         }
     }
 
+    let dictionary = match args.clarity.then(Dictionary::bundled).transpose() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("plainrussian: словарь для проверок не читается: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     if matches!(args.format, Format::Csv) {
-        let _ = writeln!(out, "{CSV_HEADER}");
+        let extra = if args.clarity { CSV_CLARITY_HEADER } else { "" };
+        let _ = writeln!(out, "{CSV_HEADER}{extra}");
     }
     for input in inputs {
         let name = input.display().to_string();
@@ -64,10 +82,39 @@ fn main() -> ExitCode {
             }
         };
         let m = readability::measure(&text);
+        let report = dictionary.as_ref().map(|d| clarity::check(d, &text));
         let line = match args.format {
-            Format::Text => text_line(&name, &m),
-            Format::Json => serde_json::json!({ "path": name, "measurement": m }).to_string(),
-            Format::Csv => csv_line(&name, &m),
+            Format::Text => {
+                let mut line = text_line(&name, &m);
+                if let Some(r) = &report {
+                    line.push_str(&clarity_line(r));
+                }
+                line
+            }
+            Format::Json => {
+                let mut json = serde_json::json!({ "path": name, "measurement": m });
+                if let Some(r) = &report {
+                    json["clarity"] = serde_json::to_value(r).expect("отчёт сериализуется");
+                }
+                json.to_string()
+            }
+            Format::Csv => {
+                let mut line = csv_line(&name, &m);
+                if let Some(r) = &report {
+                    let c = &r.counts;
+                    let counts = [
+                        c.genitive_chain,
+                        c.nominalization,
+                        c.bureaucratese,
+                        c.passive,
+                        c.abbreviation,
+                    ];
+                    for n in counts {
+                        line.push_str(&format!(",{n}"));
+                    }
+                }
+                line
+            }
         };
         // Закрытый канал (например, `| head`) — не ошибка оценки.
         if writeln!(out, "{line}").is_err() {
@@ -149,6 +196,16 @@ fn years(value: f64) -> String {
         // Дробное число: «4,5 года».
         format!("{:.1} года обучения", value).replace('.', ",")
     }
+}
+
+/// Вторая строка сводки: сколько найдено приёмов каждого вида.
+fn clarity_line(r: &Report) -> String {
+    let c = &r.counts;
+    format!(
+        "\n  ясный язык: цепочки родительных {}, отглагольные {}, канцеляризмы {}, \
+         страдательный залог {}, аббревиатуры {}",
+        c.genitive_chain, c.nominalization, c.bureaucratese, c.passive, c.abbreviation
+    )
 }
 
 fn csv_line(name: &str, m: &Measurement) -> String {
