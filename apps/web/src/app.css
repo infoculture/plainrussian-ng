@@ -125,6 +125,16 @@ footer.site p {
   margin: 8px 0 0;
 }
 
+footer.site .metrika {
+  display: inline-block;
+  margin-top: 12px;
+}
+
+footer.site .metrika img {
+  display: block;
+  border: 0;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

@@ -8,6 +8,9 @@
   import Logo from './components/Logo.svelte';
   import Settings from './components/Settings.svelte';
 
+  // Номер счётчика Метрики. Он есть только в сборке сайта (vite.config.ts), иначе 0.
+  const metrikaId: number = import.meta.env.METRIKA_ID;
+
   // Страницы переключаются по хешу: так работает и статический хостинг, и Tauri.
   let route = $state(location.hash);
   let page = $derived(route === '#settings' ? 'settings' : route === '#about' ? 'about' : 'home');
@@ -70,4 +73,18 @@
     <a href="https://infoculture.ru">Информационная культура</a>
   </nav>
   <p>Работает без интернета после первой загрузки.</p>
+  {#if metrikaId}
+    <a class="metrika" href="https://metrika.yandex.ru/stat/?id={metrikaId}&amp;from=informer" target="_blank" rel="nofollow">
+      <img
+        src="https://informer.yandex.ru/informer/{metrikaId}/3_1_FFFFFFFF_EFEFEFFF_0_pageviews"
+        width="88"
+        height="31"
+        alt="Яндекс.Метрика"
+        title="Яндекс.Метрика: данные за сегодня (просмотры, визиты и уникальные посетители)"
+        class="ym-advanced-informer"
+        data-cid={metrikaId}
+        data-lang="ru"
+      />
+    </a>
+  {/if}
 </footer>
