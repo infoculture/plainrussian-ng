@@ -1,0 +1,21 @@
+[package]
+name = "pr-cli"
+description = "Оценка простоты русскоязычных текстов из командной строки"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "plainrussian"
+path = "src/main.rs"
+
+[dependencies]
+pr-core.workspace = true
+serde_json.workspace = true
+clap = { version = "4", features = ["derive"] }
+encoding_rs = "0.8"
+
+[dev-dependencies]
+# Без float_roundtrip serde_json разбирает некоторые числа с ошибкой в последнем знаке.
+serde_json = { workspace = true, features = ["float_roundtrip"] }

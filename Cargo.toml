@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/pr-core", "crates/pr-wasm"]
+members = ["crates/pr-core", "crates/pr-wasm", "crates/pr-cli", "crates/pr-py"]
 # Настольное приложение собирается отдельно: ему нужны WebView и системные библиотеки.
 exclude = ["apps/desktop/src-tauri"]
 

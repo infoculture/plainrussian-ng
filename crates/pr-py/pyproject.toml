@@ -1,0 +1,31 @@
+[build-system]
+requires = ["maturin>=1.16,<2"]
+build-backend = "maturin"
+
+[project]
+name = "plainrussian"
+version = "0.1.0"
+description = "Оценка простоты (читаемости) русскоязычных текстов"
+readme = "README.md"
+license = "CC0-1.0"
+requires-python = ">=3.9"
+keywords = ["readability", "russian", "plain language", "nlp", "читаемость"]
+classifiers = [
+  "Natural Language :: Russian",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Rust",
+  "Topic :: Text Processing :: Linguistic",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=2.3,<3"]
+
+[project.scripts]
+plainrussian-mcp = "plainrussian.mcp_server:main"
+
+[tool.maturin]
+python-source = "python"
+module-name = "plainrussian._core"
+features = ["extension-module"]
+# Кеш байт-кода, который оставляют pytest и импорт, в колесо не нужен.
+exclude = ["**/__pycache__/**"]

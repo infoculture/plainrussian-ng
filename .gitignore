@@ -2,3 +2,7 @@
 /pkg
 __pycache__/
 .DS_Store
+
+# Собранный модуль, который maturin develop кладёт рядом с исходниками.
+crates/pr-py/python/plainrussian/*.so
+crates/pr-py/python/plainrussian/*.pyd

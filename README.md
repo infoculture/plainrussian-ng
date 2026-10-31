@@ -6,7 +6,7 @@
 
 ## Состояние
 
-Фаза 4: настольное приложение на Tauri 2 для macOS, Windows и Linux.
+Фаза 5: командная строка, Python-пакет и MCP-сервер на том же ядре.
 
 - `crates/pr-core` — ядро:
   - `readability` — текущий алгоритм: предложения по правилам razdel, слова с дефисами,
@@ -15,6 +15,10 @@
   - `sentenize` — перенос `razdel.sentenize` на Rust (лицензия MIT, см. `third_party/razdel`);
   - `legacy` — старый plainrussian.ru один в один: те же счётчики, формулы и формат ответа
     `/api/1.0/ru/measure/`, вместе с ошибками подсчёта.
+- `crates/pr-cli` — команда `plainrussian`: оценка файлов, каталогов и стандартного ввода,
+  вывод сводкой, JSON или CSV.
+- `crates/pr-py` — Python-пакет `plainrussian` (PyO3) с MCP-сервером `plainrussian-mcp`;
+  заменяет старые `textmetric` и `plainrussian-mcp`, spaCy больше не нужен.
 - `crates/pr-wasm` — обёртка для браузера: `analyze` (оценка и разметка для подсветки)
   и `measureLegacy` (ответ в формате старого API) возвращают JSON.
 - `apps/web` — веб-приложение (Vite, Svelte 5, TypeScript): оценка, подсветка сложных
@@ -32,6 +36,8 @@
 ```bash
 cargo test --workspace
 ```
+
+Для сборки `crates/pr-py` нужен Python 3.9 или новее: pyo3 ищет его при компиляции.
 
 Golden-тесты сравнивают Rust с Python-оригиналами без допуска: старый алгоритм —
 с `metric.py`, деление на предложения — с razdel 0.5.0. Эталоны лежат в
@@ -51,6 +57,55 @@ python3 -I tools/legacy-golden/generate.py
 
 ```bash
 path/to/venv/bin/python -I tools/razdel-golden/generate.py
+```
+
+## Командная строка
+
+```bash
+cargo install --path crates/pr-cli
+```
+
+```bash
+plainrussian статья.txt
+```
+
+```bash
+plainrussian --format csv тексты/ > оценки.csv
+```
+
+```bash
+cat статья.txt | plainrussian --format json -
+```
+
+В каталогах берутся все `.txt` и `.md`. Файлы не в UTF-8 читаются как windows-1251.
+Сводка показывает оценку в пределах шкалы («меньше 1 года», «17 и больше лет»), в JSON
+и CSV — сырые значения формул.
+
+## Python и MCP
+
+Пакет собирается [maturin](https://www.maturin.rs/) в одно колесо (abi3) для Python 3.9+:
+
+```bash
+cd crates/pr-py && maturin develop --release
+```
+
+```python
+import plainrussian
+plainrussian.measure(text)["indexes"]["average"]   # оценка, лет обучения, и уровень
+plainrussian.details(text)["complex_words"]          # сложные слова строками
+plainrussian.sentenize(text)                         # предложения по правилам razdel
+plainrussian.measure_legacy(text)                    # формат старого API
+```
+
+MCP-сервер ставится с дополнением `mcp` (`pip install "plainrussian[mcp]"`) и даёт
+инструменты `measure_readability` и `find_hard_parts`. Запуск по stdio — `plainrussian-mcp`,
+по Streamable HTTP — `plainrussian-mcp --http 127.0.0.1:9000`. Подробнее в
+`crates/pr-py/README.md`.
+
+Тесты пакета и сервера:
+
+```bash
+cd crates/pr-py && pytest tests
 ```
 
 ## Калибровка
