@@ -82,6 +82,12 @@ path/to/venv/bin/python -I tools/razdel-golden/generate.py
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
+Чтобы выложить только сайт, без релиза, запустите тот же workflow вручную из `main`:
+
+```bash
+gh workflow run release.yml --ref main
+```
+
 Перед первым релизом в настройках репозитория выберите Pages → Source: GitHub Actions.
 Публикация на PyPI необязательна и включается переменной `PUBLISH_PYPI` = `true`
 (нужны trusted publisher на pypi.org и окружение `pypi`).

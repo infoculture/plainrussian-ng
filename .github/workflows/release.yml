@@ -1,5 +1,6 @@
 # Релиз по тегу вида v0.2.0: сайт на GitHub Pages, черновик релиза с установщиками
 # настольного приложения, колёсами Python и программой plainrussian для трёх ОС.
+# Ручной запуск из main (gh workflow run release.yml --ref main) выкладывает только сайт.
 #
 # Перед первым запуском в настройках репозитория:
 # - Pages → Source: GitHub Actions (для сайта);
@@ -13,6 +14,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,6 +27,8 @@ env:
 jobs:
   create-release:
     name: Черновик релиза
+    # Остальные задачи релиза ждут эту, поэтому при ручном запуске пропускаются вместе с ней.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
