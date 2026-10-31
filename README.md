@@ -71,6 +71,61 @@ python3 -I tools/legacy-golden/generate.py
 path/to/venv/bin/python -I tools/razdel-golden/generate.py
 ```
 
+## Выпуск
+
+Релиз собирает `.github/workflows/release.yml` по тегу вида `v0.2.0`: сайт на GitHub Pages,
+черновик релиза с установщиками для macOS (Apple Silicon и Intel), Windows и Linux,
+архивы с `plainrussian` и `plainrussian-server` и колёса Python. Черновик проверяют и
+публикуют вручную.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Перед первым релизом в настройках репозитория выберите Pages → Source: GitHub Actions.
+Публикация на PyPI необязательна и включается переменной `PUBLISH_PYPI` = `true`
+(нужны trusted publisher на pypi.org и окружение `pypi`).
+
+### Подпись приложений
+
+Без настройки macOS-приложение получает ad-hoc подпись (`signingIdentity: "-"` в
+`tauri.conf.json`): на Apple Silicon приложение из интернета без подписи macOS называет
+повреждённым, а с ней пользователь один раз разрешает запуск. Установщик для Windows
+не подписан. Полная подпись включается секретами и переменными репозитория (Settings →
+Secrets and variables → Actions), менять workflow не нужно; их проверяет и передаёт
+сборке `.github/scripts/signing-env.sh`.
+
+macOS: нужен платный Apple Developer Program и сертификат Developer ID Application,
+который создаёт владелец аккаунта (Account Holder).
+
+| Секрет | Что это |
+|---|---|
+| `APPLE_CERTIFICATE` | сертификат с закрытым ключом, `.p12` в base64 (`base64 -i cert.p12`) |
+| `APPLE_CERTIFICATE_PASSWORD` | пароль от `.p12` |
+| `APPLE_SIGNING_IDENTITY` | имя сертификата: `Developer ID Application: Организация (TEAMID)` |
+| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | нотаризация по Apple ID; пароль — пароль приложения с appleid.apple.com |
+| `APPLE_API_KEY`, `APPLE_API_ISSUER`, `APPLE_API_PRIVATE_KEY` | или нотаризация по ключу App Store Connect API: ID ключа, Issuer ID и содержимое `.p8` |
+
+Без нотаризации подписанное приложение Gatekeeper всё равно не пропустит без вопроса,
+поэтому нужен один из двух наборов для нотаризации.
+
+Windows: ключи новых сертификатов подписи кода хранятся только в аппаратных модулях, поэтому
+подписывать в CI можно облачным сервисом — Azure Artifact Signing, Azure Key Vault или
+облачным HSM удостоверяющего центра. Подпись задаётся переменными (не секретами):
+
+| Переменная | Что это |
+|---|---|
+| `WINDOWS_SIGN_COMMAND` | команда подписи, `%1` — путь к файлу (`signCommand` в Tauri), например `artifact-signing-cli -e https://weu.codesigning.azure.net -a Account -c Profile %1` |
+| `WINDOWS_SIGN_INSTALL` | необязательно: команда, которая ставит инструмент подписи на сборщик |
+
+Для сервисов Azure добавьте секреты `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` и
+`AZURE_CLIENT_SECRET`. Даже подписанный установщик SmartScreen поначалу помечает как
+редкий: репутация копится с загрузками, поэтому все выпуски лучше подписывать одним
+сертификатом.
+
+Azure Artifact Signing выдаёт публичные сертификаты только организациям из ограниченного
+списка стран, России в нём нет; это стоит учитывать при выборе способа подписи.
+
 ## Проверки ясного языка
 
 Помимо оценки сервис находит приёмы, которые утяжеляют текст:
@@ -241,6 +296,25 @@ npm run dev
 - в сборке действует Content Security Policy: только свои скрипты, никаких внешних
   запросов, никакой аналитики.
 
+## Установка настольного приложения
+
+Установщики лежат в разделе Releases на GitHub. Пока приложение не подписано
+сертификатами Apple и Microsoft, при первом запуске система предупредит о неизвестном
+разработчике.
+
+**macOS.** Скачайте `.dmg` для своего процессора: `aarch64` — Apple Silicon (M1 и новее),
+`x64` — Intel. Перетащите PlainRussian в «Программы» и запустите. Если macOS сообщит, что
+не может проверить разработчика, откройте «Системные настройки» → «Конфиденциальность и
+безопасность», внизу нажмите «Всё равно открыть» и подтвердите. Это нужно один раз.
+
+**Windows.** Скачайте `.msi` или `-setup.exe`. Если появится «Система Windows защитила ваш
+компьютер», нажмите «Подробнее» → «Выполнить в любом случае». В Windows 11 с включённым
+интеллектуальным управлением приложениями (Smart App Control) неподписанное приложение
+может не запуститься совсем: тогда пользуйтесь сайтом.
+
+**Linux.** `.deb` ставится командой `sudo apt install ./PlainRussian_*.deb`; `.AppImage`
+достаточно сделать исполняемым (`chmod +x`) и запустить.
+
 ## Настольное приложение
 
 Оболочка Tauri 2 над тем же веб-интерфейсом. Оценку считает то же ядро на WebAssembly,
@@ -269,8 +343,8 @@ npm run dev
 ```
 
 `npm run build` собирает установщики для текущей ОС: `.app` и `.dmg` в macOS, `.msi` и
-`.exe` в Windows, `.deb`, `.rpm` и `.AppImage` в Linux. Подпись приложений пока не настроена,
-поэтому macOS и Windows предупредят о неизвестном разработчике.
+`.exe` в Windows, `.deb`, `.rpm` и `.AppImage` в Linux. Как подписать их при выпуске —
+в разделе «Подпись приложений».
 
 Веб-часть для приложения собирается в режиме `desktop` (`npm run build:desktop` в `apps/web`):
 без service worker и без meta-CSP — политику задаёт `tauri.conf.json`, и она строже

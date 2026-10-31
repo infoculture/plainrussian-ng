@@ -5,7 +5,9 @@
 # - Pages → Source: GitHub Actions (для сайта);
 # - для публикации на PyPI — trusted publisher на pypi.org, окружение `pypi`
 #   и переменная PUBLISH_PYPI = true; без неё колёса только прикладываются к релизу.
-# Подписи приложений нет: macOS и Windows предупредят о неизвестном разработчике.
+# Подпись настольного приложения включается секретами и переменными репозитория,
+# список — в .github/scripts/signing-env.sh и в README («Подпись приложений»). Без них
+# macOS-приложение получает ad-hoc подпись, а установщик для Windows не подписан.
 name: Release
 
 on:
@@ -34,8 +36,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          # Текст идёт перед списком изменений, который GitHub соберёт сам.
+          body="Если при первом запуске система предупреждает о неизвестном разработчике,"
+          body+=" см. инструкцию: https://github.com/$GITHUB_REPOSITORY#установка-настольного-приложения"
           id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
-            -f tag_name="$TAG" -f name="Простой русский $TAG" \
+            -f tag_name="$TAG" -f name="Простой русский $TAG" -f body="$body" \
             -F draft=true -F generate_release_notes=true --jq .id)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
@@ -133,6 +138,25 @@ jobs:
         run: |
           npm ci --prefix apps/web
           npm ci --prefix apps/desktop
+      - name: Подпись
+        id: signing
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_PRIVATE_KEY: ${{ secrets.APPLE_API_PRIVATE_KEY }}
+          WINDOWS_SIGN_COMMAND: ${{ vars.WINDOWS_SIGN_COMMAND }}
+          WINDOWS_SIGN_INSTALL: ${{ vars.WINDOWS_SIGN_INSTALL }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: .github/scripts/signing-env.sh
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -140,7 +164,7 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.id }}
           projectPath: apps/desktop
           tauriScript: npx tauri
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ steps.signing.outputs.args }}
 
   wheels:
     name: Колёса Python (${{ matrix.os }}, ${{ matrix.target }})
