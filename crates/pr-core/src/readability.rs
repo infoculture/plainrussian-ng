@@ -16,7 +16,6 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::legacy::grade_text;
 use crate::sentenize::sentenize_chars;
 
 /// Слово сложное, если в нём больше стольких слогов (как в старом алгоритме).
@@ -34,7 +33,7 @@ pub struct Calibration {
     pub cl: [f64; 3],
     /// SMOG: √(сложных слов на 30 предложений).
     pub smog: [f64; 2],
-    /// Dale-Chale (упрощённая): сложных слов на 100 слов, слов в предложении.
+    /// Dale-Chall (упрощённая): сложных слов на 100 слов, слов в предложении.
     pub dc: [f64; 3],
     /// ARI: букв в слове, слов в предложении.
     pub ari: [f64; 3],
@@ -247,10 +246,29 @@ pub fn indexes(f: &Features, k: &Calibration) -> Indexes {
     }
 }
 
+/// Уровни: верхняя граница в годах обучения и подпись. Границы те же, что в старом
+/// алгоритме ([`crate::legacy::grade_text`]), а подписи набраны заново: старые
+/// («1 - 3-й класс», «phD») менять нельзя, их ждут прежние интеграции.
+const GRADE_LABELS: [(f64, &str); 6] = [
+    (3.0, "1–3-й класс (возраст примерно 6–8 лет)"),
+    (6.0, "4–6-й класс (возраст примерно 9–11 лет)"),
+    (9.0, "7–9-й класс (возраст примерно 12–14 лет)"),
+    (11.0, "10–11-й класс (возраст примерно 15–16 лет)"),
+    (14.0, "1–3-й курс вуза (возраст примерно 17–19 лет)"),
+    (17.0, "4–6-й курс вуза (возраст примерно 20–22 года)"),
+];
+
+const TOP_GRADE_LABEL: &str = "Аспирантура, второе высшее образование, PhD";
+
 /// Словесное описание уровня. В отличие от старого алгоритма, всё, что проще
 /// первого класса, попадает в младшую группу, а не в «неизвестно».
 pub fn grade_label(value: f64) -> String {
-    grade_text(value.max(1.0))
+    let grade = value.max(1.0).round();
+    GRADE_LABELS
+        .iter()
+        .find(|(max, _)| grade <= *max)
+        .map_or(TOP_GRADE_LABEL, |(_, label)| label)
+        .to_string()
 }
 
 pub(crate) struct WordToken {
@@ -400,6 +418,7 @@ impl Utf16Offsets {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::legacy::grade_text;
 
     fn words(text: &str) -> Vec<(String, u64)> {
         let chars: Vec<char> = text.chars().collect();
@@ -465,7 +484,40 @@ mod tests {
 
     #[test]
     fn grade_label_clamps_simple_texts() {
-        assert_eq!(grade_label(-3.0), grade_text(1.0));
-        assert_eq!(grade_label(30.0), grade_text(30.0));
+        assert_eq!(grade_label(-3.0), grade_label(1.0));
+        assert_eq!(grade_label(f64::NAN), grade_label(1.0));
+        assert_eq!(grade_label(30.0), TOP_GRADE_LABEL);
+    }
+
+    #[test]
+    fn grade_labels_are_typeset() {
+        assert_eq!(grade_label(3.4), "1–3-й класс (возраст примерно 6–8 лет)");
+        assert_eq!(grade_label(3.5), "4–6-й класс (возраст примерно 9–11 лет)");
+        assert_eq!(
+            grade_label(11.4),
+            "10–11-й класс (возраст примерно 15–16 лет)"
+        );
+        assert_eq!(
+            grade_label(17.4),
+            "4–6-й курс вуза (возраст примерно 20–22 года)"
+        );
+        assert_eq!(
+            grade_label(17.5),
+            "Аспирантура, второе высшее образование, PhD"
+        );
+    }
+
+    /// Подписи свои, но уровни сменяются на тех же годах, что в старом алгоритме.
+    #[test]
+    fn grade_bands_match_legacy() {
+        for grade in 1..24 {
+            let (a, b) = (f64::from(grade), f64::from(grade + 1));
+            assert_eq!(
+                grade_label(a) == grade_label(b),
+                grade_text(a) == grade_text(b),
+                "граница между {grade} и {}",
+                grade + 1
+            );
+        }
     }
 }

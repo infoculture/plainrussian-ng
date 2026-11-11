@@ -41,7 +41,10 @@ export function userMessage(text: string): string {
   return `Оцени текст:\n\n<text>\n${text}\n</text>`;
 }
 
-/** Уровни — как GRADE_TEXT в crates/pr-core/src/legacy.rs. */
+/**
+ * Уровни — как grade_label в crates/pr-core/src/readability.rs, кроме верха шкалы:
+ * 17 у модели значит «17 лет и больше», поэтому подпись не ограничивается вузом.
+ */
 export function gradeLabel(grade: number): string {
   const g = Math.round(grade);
   if (g <= 3) return '1–3-й класс (возраст примерно 6–8 лет)';
@@ -49,8 +52,8 @@ export function gradeLabel(grade: number): string {
   if (g <= 9) return '7–9-й класс (возраст примерно 12–14 лет)';
   if (g <= 11) return '10–11-й класс (возраст примерно 15–16 лет)';
   if (g <= 14) return '1–3-й курс вуза (возраст примерно 17–19 лет)';
-  if (g <= 17) return '4–6-й курс вуза (возраст примерно 20–22 лет)';
-  return 'Аспирантура, второе высшее образование';
+  if (g <= 16) return '4–6-й курс вуза (возраст примерно 20–22 года)';
+  return '4–6-й курс вуза и выше';
 }
 
 /** Модель могла ответить вне шкалы; приводим к 1–17. */

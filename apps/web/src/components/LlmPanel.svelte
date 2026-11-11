@@ -3,7 +3,7 @@
   import { LlmError, assess, destination, provider, runsLocally } from '../lib/llm/providers.ts';
   import { toRequest } from '../lib/llm/settings.ts';
   import { isConfigured, llm } from '../lib/llm/store.svelte.ts';
-  import { plural } from '../lib/segments';
+  import { charCount, plural } from '../lib/segments';
   import { audience, verdict } from '../lib/target.svelte.ts';
 
   let { text, formula }: { text: string; formula: number | null } = $props();
@@ -72,7 +72,7 @@
       {#if local}
         {p.title}, {ps.model}: текст останется на этом компьютере.
       {:else}
-        {ps.model}: текст ({text.length.toLocaleString('ru-RU')} знаков) будет отправлен: {target}.
+        {ps.model}: текст ({charCount(text.length)}) будет отправлен: {target}.
       {/if}
       <a href="#settings">Изменить</a>
     </p>

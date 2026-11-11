@@ -78,6 +78,11 @@ export function buildBlocks(text: string, sentences: SentenceSpan[], marks: Mark
   return blocks;
 }
 
+/** Число знаков с разрядами и склонением: «1 501 знак», «373 знака». */
+export function charCount(n: number): string {
+  return `${n.toLocaleString('ru-RU')} ${plural(n, ['знак', 'знака', 'знаков'])}`;
+}
+
 /** Склонение: plural(5, ['слово', 'слова', 'слов']) → 'слов'. */
 export function plural(n: number, forms: [string, string, string]): string {
   const mod10 = n % 10;

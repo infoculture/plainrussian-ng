@@ -36,7 +36,7 @@ async def test_measure_readability():
     assert data["counts"]["sentences"] == 2
     assert 12 < data["grade_years"] <= 17
     assert data["grade_years_raw"] >= data["grade_years"]
-    assert set(data["formulas"]) == {"Flesch-Kincaid", "Coleman-Liau", "SMOG", "Dale-Chale", "ARI"}
+    assert set(data["formulas"]) == {"Flesch-Kincaid", "Coleman-Liau", "SMOG", "Dale-Chall", "ARI"}
     assert data["calibration"] == "2026.1"
 
 
