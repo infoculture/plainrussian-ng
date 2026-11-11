@@ -96,6 +96,8 @@ jobs:
         run: pip install "./crates/pr-py[mcp]" pytest anyio
       - name: Тесты
         run: pytest crates/pr-py/tests
+      - name: Тесты скриптов калибровки
+        run: python -m unittest discover -s calibration
 
   desktop:
     name: Настольное приложение (Linux)
