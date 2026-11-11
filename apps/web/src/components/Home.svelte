@@ -7,6 +7,7 @@
   import { ACCEPT, ImportError, pageToText, readFileText } from '../lib/import';
   import { fetchPage, isDesktop } from '../lib/platform';
   import { SAMPLES } from '../lib/samples';
+  import { charCount } from '../lib/segments';
   import type { Analysis, ClarityReport } from '../lib/types';
   import ClarityPanel from './ClarityPanel.svelte';
   import Highlighted from './Highlighted.svelte';
@@ -23,6 +24,8 @@
   let busy = $state(false);
   // Оценка формулами — для сравнения с оценкой LLM.
   let formula = $derived(analysis?.result.measurement.indexes?.average.value ?? null);
+  // Под полем — то же число, что «Знаков» в показателях: без переводов строк.
+  let chars = $derived(analysis?.text === text ? analysis.result.measurement.counts.chars : text.length);
   let error = $state('');
   let analyzeError = $state('');
   let dragging = $state(false);
@@ -200,7 +203,7 @@
       {:else if busy}
         <span>Считаю…</span>
       {:else if text}
-        <span>{text.length.toLocaleString('ru-RU')} знаков</span>
+        <span>{charCount(chars)}</span>
         {#if source?.text === text}<span> · {source.url}</span>{/if}
       {/if}
     </div>

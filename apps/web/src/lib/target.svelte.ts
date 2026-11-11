@@ -13,7 +13,7 @@ export interface Audience {
   max: number;
 }
 
-/** Границы совпадают с уровнями шкалы (GRADE_TEXT в crates/pr-core/src/legacy.rs). */
+/** Границы совпадают с уровнями шкалы (grade_label в crates/pr-core/src/readability.rs). */
 export const AUDIENCES: Audience[] = [
   { id: 'primary', title: 'Младшие школьники', max: 3 },
   { id: 'middle', title: 'Школьники 4–6-го класса', max: 6 },

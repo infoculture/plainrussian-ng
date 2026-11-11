@@ -21,8 +21,12 @@
   let tooShort = $derived(c.sentences < 2 || c.words < 10);
 
   // Корпус размечен от 1 до 17 («17 и выше»), за этими границами формулы экстраполируют.
+  // Поэтому и главная оценка, и отдельные формулы показываются в пределах шкалы:
+  // «52,9 лет обучения» рядом с итогом «17+» только сбивает с толку.
+  const onScale = (value: number, digits: number) =>
+    value < MIN ? `<${MIN}` : value >= MAX ? `${MAX}+` : fmt(value, digits);
   let average = $derived(ix?.average.value ?? 0);
-  let score = $derived(average < MIN ? `<${MIN}` : average >= MAX ? `${MAX}+` : fmt(average, 1));
+  let score = $derived(onScale(average, 1));
   let years = $derived(plural(Math.min(Math.max(Math.round(average), MIN), MAX), ['год', 'года', 'лет']));
 
   // Цель: оценка сравнивается с верхней границей выбранной аудитории.
@@ -37,7 +41,7 @@
           { name: 'Coleman-Liau', index: ix.cl },
           { name: 'SMOG', index: ix.smog },
           { name: 'Automated Readability Index', index: ix.ari },
-          { name: 'Dale-Chale (упрощённая)', index: ix.dc },
+          { name: 'Dale-Chall (упрощённая)', index: ix.dc },
         ]
       : [],
   );
@@ -90,7 +94,7 @@
     </thead>
     <tbody>
       {#each formulas as row (row.name)}
-        <tr><td>{row.name}</td><td class="num">{fmt(row.index.value)}</td><td>{row.index.grade}</td></tr>
+        <tr><td>{row.name}</td><td class="num">{onScale(row.index.value, 2)}</td><td>{row.index.grade}</td></tr>
       {/each}
     </tbody>
   </table>

@@ -65,7 +65,7 @@ def measure_readability(text: str) -> dict[str, Any]:
             ("Flesch-Kincaid", "fk"),
             ("Coleman-Liau", "cl"),
             ("SMOG", "smog"),
-            ("Dale-Chale", "dc"),
+            ("Dale-Chall", "dc"),
             ("ARI", "ari"),
         ]
     }
