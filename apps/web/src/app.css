@@ -426,6 +426,46 @@ details summary {
   line-height: 1.7;
 }
 
+/* Выделенное в подсветке ведёт к месту в поле ввода. */
+.annotated [data-start] {
+  cursor: pointer;
+}
+
+/* Списки, по которым переходят к месту в тексте. */
+.jump-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+.jump-list li {
+  border-bottom: 1px solid var(--border);
+}
+
+button.jump {
+  display: block;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+  font-size: inherit;
+  text-align: left;
+}
+
+button.jump:hover {
+  color: var(--accent);
+}
+
+button.jump .count {
+  margin-right: 6px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 mark {
   background: var(--mark);
   color: inherit;
@@ -622,6 +662,20 @@ blockquote {
   align-items: center;
   gap: 8px;
   font-size: 15px;
+}
+
+button.clarity-head {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+
+button.clarity-head:hover {
+  color: var(--accent);
 }
 
 .clarity-head .num {

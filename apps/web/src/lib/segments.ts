@@ -21,12 +21,13 @@ export interface Mark {
 
 export interface Part {
   text: string;
-  mark?: { cls: string; title: string };
+  /** Смещения — отметки целиком, даже если здесь её часть: по ним она выделяется в поле ввода. */
+  mark?: { cls: string; title: string; start: number; end: number };
 }
 
 export type Block =
   | { kind: 'gap'; text: string }
-  | { kind: 'sentence'; level: 0 | 1 | 2; words: number; parts: Part[] };
+  | { kind: 'sentence'; level: 0 | 1 | 2; words: number; start: number; end: number; parts: Part[] };
 
 export function complexWordMarks(annotation: Annotation): Mark[] {
   return annotation.words
@@ -63,7 +64,12 @@ export function buildBlocks(text: string, sentences: SentenceSpan[], marks: Mark
       const from = Math.max(mark.start, cursor);
       const to = Math.min(mark.end, end);
       if (from > cursor) parts.push({ text: text.slice(cursor, from) });
-      if (to > from) parts.push({ text: text.slice(from, to), mark: { cls: mark.cls, title: mark.title } });
+      if (to > from) {
+        parts.push({
+          text: text.slice(from, to),
+          mark: { cls: mark.cls, title: mark.title, start: mark.start, end: mark.end },
+        });
+      }
       cursor = Math.max(cursor, to);
       if (mark.end > end) break;
       m++;
@@ -71,7 +77,7 @@ export function buildBlocks(text: string, sentences: SentenceSpan[], marks: Mark
     if (end > cursor) parts.push({ text: text.slice(cursor, end) });
 
     const level = s.words >= VERY_LONG_SENTENCE ? 2 : s.words >= LONG_SENTENCE ? 1 : 0;
-    blocks.push({ kind: 'sentence', level, words: s.words, parts });
+    blocks.push({ kind: 'sentence', level, words: s.words, start: s.start, end: s.end, parts });
     pos = end;
   }
   if (pos < limit) blocks.push({ kind: 'gap', text: text.slice(pos, limit) });

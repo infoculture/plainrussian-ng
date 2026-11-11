@@ -1,6 +1,7 @@
 <script lang="ts">
-  import type { Measurement } from '../lib/types';
+  import type { Measurement, SentenceSpan } from '../lib/types';
   import { plural } from '../lib/segments';
+  import LongSentences from './LongSentences.svelte';
   import {
     AUDIENCES,
     SCALE_MAX as MAX,
@@ -10,7 +11,18 @@
     verdict,
   } from '../lib/target.svelte.ts';
 
-  let { measurement }: { measurement: Measurement } = $props();
+  let {
+    measurement,
+    text,
+    sentences,
+    onselect,
+  }: {
+    measurement: Measurement;
+    /** Текст и его предложения — для списка самых длинных. */
+    text: string;
+    sentences: SentenceSpan[];
+    onselect: (start: number, end: number) => void;
+  } = $props();
 
   const fmt = (n: number, digits = 2) => n.toLocaleString('ru-RU', { maximumFractionDigits: digits });
 
@@ -86,6 +98,8 @@
   {#if tooShort}
     <p class="warning">Текст слишком короткий: оценка надёжна от 2 предложений и 10 слов.</p>
   {/if}
+
+  <LongSentences {text} {sentences} {onselect} />
 
   <h2>Индексы читаемости</h2>
   <table>

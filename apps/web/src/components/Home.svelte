@@ -4,6 +4,7 @@
   // В имени файла сборки — хеш содержимого: новый словарь не застрянет в кеше.
   import dictionaryAsset from '../wasm/clarity-pkg/ru.dict.gz?url';
   import { clarityEnabled, setClarityEnabled } from '../lib/clarity';
+  import { selectRange } from '../lib/editor';
   import { ACCEPT, ImportError, pageToText, readFileText } from '../lib/import';
   import { fetchPage, isDesktop } from '../lib/platform';
   import { SAMPLES } from '../lib/samples';
@@ -35,6 +36,15 @@
   let loadingUrl = $state(false);
   let source = $state<{ url: string; text: string } | null>(null);
   let fileInput: HTMLInputElement;
+  let textarea: HTMLTextAreaElement;
+
+  /** Переход от находки к месту в тексте: фрагмент выделяется в поле ввода. */
+  function select(start: number, end: number) {
+    // Смещения относятся к тексту, по которому построена разметка. Если текст уже
+    // правили, а новая разметка ещё считается, они указывают не туда.
+    if (analysis?.text !== text) return;
+    selectRange(textarea, start, end);
+  }
 
   // Проверки ясного языка: словарь загружается при включении и затем лежит в кеше.
   const dictionaryUrl = new URL(dictionaryAsset, document.baseURI).href;
@@ -193,6 +203,7 @@
       </div>
     {/if}
     <textarea
+      bind:this={textarea}
       bind:value={text}
       placeholder="Вставьте текст или перетащите сюда файл: txt, html, docx, pdf"
       spellcheck="false"
@@ -215,13 +226,19 @@
         text={analysis.text}
         annotation={analysis.result.annotation}
         clarity={clarity?.text === analysis.text ? clarity.report : null}
+        onselect={select}
       />
     </section>
   {/if}
 
   <aside class="results" aria-live="polite">
     {#if analysis}
-      <Results measurement={analysis.result.measurement} />
+      <Results
+        measurement={analysis.result.measurement}
+        text={analysis.text}
+        sentences={analysis.result.annotation.sentences}
+        onselect={select}
+      />
     {:else}
       <p class="empty">Здесь появится оценка: уровень образования, нужный для понимания текста, и подробные показатели.</p>
     {/if}
@@ -231,6 +248,7 @@
       error={clarityError}
       onenable={enableClarity}
       ondisable={disableClarity}
+      onselect={select}
     />
     <LlmPanel {text} {formula} />
     <p class="note"><a href="#about">Как считается оценка</a></p>
