@@ -4,6 +4,7 @@
   import { toRequest } from '../lib/llm/settings.ts';
   import { isConfigured, llm } from '../lib/llm/store.svelte.ts';
   import { plural } from '../lib/segments';
+  import { audience, verdict } from '../lib/target.svelte.ts';
 
   let { text, formula }: { text: string; formula: number | null } = $props();
 
@@ -23,6 +24,8 @@
   } | null>(null);
 
   let grade = $derived(result ? clampGrade(result.assessment.grade) : 0);
+  // Ошибка оценки модели не измерена, поэтому допуска нет: выше цели — значит сложнее.
+  let outcome = $derived(verdict(grade, audience(), 0));
   let stale = $derived(result !== null && result.text !== text);
   let target = $derived(destination(p, ps.baseUrl));
   let local = $derived(runsLocally(p, ps.baseUrl));
@@ -100,6 +103,7 @@
         <div class="audience">{gradeLabel(grade)}</div>
       </div>
     </div>
+    <p class="verdict {outcome.level}">{outcome.text}</p>
     {#if formula !== null && !stale}
       <p class="note">Формулы: {fmt(Math.min(Math.max(formula, 1), 17))}, модель: {fmt(grade)}.</p>
     {/if}
