@@ -7,18 +7,18 @@
 Вход:
 - calibration/graded/sources.csv — источники, заполняется вручную (колонки ниже);
 - <корпус>/sources/<source_id>.txt — очищенный связный текст источника в UTF-8, без
-  заголовков, заданий, таблиц, подписей и стихов. Абзац начинается после пустой строки
-  или со строки с отступом; если нет ни того, ни другого, абзацем считается каждая
-  строка. Короткие тексты одного источника (например, тексты для проверки техники
+  заголовков, заданий, таблиц, подписей и стихов. Разбивка на строки и абзацы не
+  важна. Короткие тексты одного источника (например, тексты для проверки техники
   чтения) складываются в один файл.
 
 Выход:
 - <корпус>/fragments/<source_id>/NN.txt — фрагменты; устаревшие файлы NN.txt удаляются;
 - calibration/graded/fragments.csv — путь, источник и sha256 каждого фрагмента.
 
-Из длинного текста берётся до PER_SOURCE фрагментов по MIN_WORDS–MAX_WORDS слов из целых
-абзацев, равномерно от начала к концу. Текст не длиннее MAX_WORDS слов — один фрагмент.
-Слова считаются приблизительно, точные счётчики даёт corpus_features.
+Из длинного текста берётся до PER_SOURCE фрагментов по MIN_WORDS–MAX_WORDS слов,
+равномерно от начала к концу. Фрагмент начинается и кончается на границе предложений.
+Текст не длиннее MAX_WORDS слов — один фрагмент. Слова и предложения здесь считаются
+приблизительно, точные счётчики даёт corpus_features.
 
 Колонки sources.csv:
 - source_id — латиница, цифры, «-» и «_»; он же имя файла и группа при проверке
@@ -38,7 +38,7 @@ import csv
 import hashlib
 import re
 import sys
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from collections import Counter
 from pathlib import Path
 
@@ -48,8 +48,10 @@ MIN_WORDS = 300
 MAX_WORDS = 500
 SHORTEST = 100
 PER_SOURCE = 5
-# Абзацы короче в поиске повторов не участвуют: это реплики и общие фразы.
-SHARED_WORDS = 20
+# Один текст в двух источниках: столько общих предложений не короче SHARED_WORDS слов.
+# Короткие предложения и одна-две общие цитаты повтором не считаются.
+SHARED_WORDS = 6
+SHARED_SENTENCES = 3
 
 GRADES = range(1, 18)
 # Цель сбора для школьных уровней: фрагментов и источников на уровень в подборе.
@@ -79,6 +81,9 @@ GENRES = {
 }
 
 WORD = re.compile(r"[^\W\d_]+")
+# Конец предложения: «!», «?», «…» или точка не после одной буквы (инициал, «г.»),
+# дальше пробел и заглавная буква или цифра, возможно после кавычки или тире.
+SENTENCE_END = re.compile(r"(?:(?<!\W\w)\.|[!?…])[.!?…]*[»”\")\]]*\s+(?=[«„\"(—–-]?\s*[А-ЯЁA-Z0-9])")
 SOURCE_ID = re.compile(r"[a-z0-9][a-z0-9_-]*")
 FRAGMENT_FILE = re.compile(r"\d\d\.txt")
 
@@ -87,44 +92,29 @@ def count_words(text):
     return len(WORD.findall(text))
 
 
-def paragraphs(text):
-    """Абзацы текста, каждый одной строкой.
-
-    Абзац начинается после пустой строки или со строки с отступом, как в текстах
-    lib.ru. Если нет ни пустых строк, ни отступов, абзац — каждая строка.
-    """
-    lines = text.replace("\r\n", "\n").replace("\r", "\n").strip().split("\n")
-
-    def opens(line):
-        return not line.strip() or line[0].isspace()
-
-    marked = any(opens(line) for line in lines[1:])
-    result, current = [], []
-    for line in lines:
-        if current and (not marked or opens(line)):
-            result.append(" ".join(current))
-            current = []
-        current += line.split()
-    if current:
-        result.append(" ".join(current))
-    return result
+def sentences(text):
+    """Предложения текста как срезы строки, без потерь: в сумме дают весь текст."""
+    starts = [0] + [m.end() for m in SENTENCE_END.finditer(text)]
+    return [text[begin:end] for begin, end in zip(starts, starts[1:] + [len(text)])]
 
 
 def cut(sizes):
-    """Границы фрагментов (начало, конец) в абзацах по числу слов в каждом абзаце."""
+    """Границы фрагментов (начало, конец) в предложениях по числу слов в каждом."""
     total = sum(sizes)
     if total <= MAX_WORDS:
         return [(0, len(sizes))] if total >= SHORTEST else []
     offsets = [0]
     for size in sizes[:-1]:
         offsets.append(offsets[-1] + size)
+    # Последнее предложение, после которого до конца текста ещё хватает слов.
+    last = bisect_right(offsets, total - MIN_WORDS) - 1
     count = min(PER_SOURCE, total // MAX_WORDS)
     zone = total / count
     result = []
     free = 0
     for i in range(count):
-        # Фрагмент стоит посередине своей доли текста и начинается с начала абзаца.
-        begin = max(free, bisect_left(offsets, i * zone + (zone - MAX_WORDS) / 2))
+        # Фрагмент стоит посередине своей доли текста.
+        begin = max(free, min(last, bisect_left(offsets, i * zone + (zone - MAX_WORDS) / 2)))
         end, words = begin, 0
         while end < len(sizes) and (words < MIN_WORDS or words + sizes[end] <= MAX_WORDS):
             words += sizes[end]
@@ -178,7 +168,7 @@ def build(corpus, manifest):
                 errors.append(f"sources/{path.name}: источника нет в sources.csv")
 
     fragments = []  # (путь, source_id, текст)
-    shared = {}  # отпечаток длинного абзаца -> первый источник с ним
+    shared = {}  # буквы длинного предложения -> первый источник с ним
     overlaps = Counter()
     for row in rows:
         sid = row["source_id"]
@@ -186,28 +176,28 @@ def build(corpus, manifest):
         if not path.is_file():
             errors.append(f"sources/{sid}.txt: файла нет")
             continue
-        paras = paragraphs(path.read_text(encoding="utf-8-sig"))
-        sizes = [count_words(p) for p in paras]
-        for para, size in zip(paras, sizes):
-            if size >= SHARED_WORDS:
-                # Издания одного текста расходятся в «ё», регистре и пунктуации.
-                letters = "".join(WORD.findall(para.casefold().replace("ё", "е")))
-                first = shared.setdefault(letters, sid)
-                if first != sid:
-                    overlaps[first, sid] += 1
+        text = path.read_text(encoding="utf-8-sig").replace("\r\n", "\n").replace("\r", "\n").strip()
+        parts = sentences(text)
+        sizes = [count_words(part) for part in parts]
+        # Издания одного текста расходятся в «ё», регистре, пунктуации и переносах строк.
+        long = {"".join(WORD.findall(part.casefold().replace("ё", "е")))
+                for part, size in zip(parts, sizes) if size >= SHARED_WORDS}
+        for letters in long:
+            first = shared.setdefault(letters, sid)
+            if first != sid:
+                overlaps[first, sid] += 1
         bounds = cut(sizes)
         if not bounds:
-            reason = (f"в тексте меньше {SHORTEST} слов" if sum(sizes) < SHORTEST
-                      else "текст не разбит на абзацы")
-            errors.append(f"sources/{sid}.txt: нет ни одного фрагмента — {reason}")
+            errors.append(f"sources/{sid}.txt: в тексте меньше {SHORTEST} слов")
         for number, (begin, end) in enumerate(bounds, start=1):
             if sum(sizes[begin:end]) > 2 * MAX_WORDS:
                 errors.append(f"sources/{sid}.txt: фрагмент {number:02} длиннее {2 * MAX_WORDS} слов — "
-                              "разбейте длинные абзацы")
-            fragments.append((f"{sid}/{number:02}.txt", sid, "\n".join(paras[begin:end]) + "\n"))
+                              "в тексте не хватает концов предложений")
+            fragments.append((f"{sid}/{number:02}.txt", sid, "".join(parts[begin:end]).strip() + "\n"))
     for (first, second), count in sorted(overlaps.items()):
-        errors.append(f"sources/{first}.txt и sources/{second}.txt: общих абзацев — {count}; "
-                      "один текст не должен попасть в корпус дважды")
+        if count >= SHARED_SENTENCES:
+            errors.append(f"sources/{first}.txt и sources/{second}.txt: общих предложений — {count}; "
+                          "один текст не должен попасть в корпус дважды")
     if errors:
         return [], errors
 

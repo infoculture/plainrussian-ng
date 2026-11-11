@@ -11,29 +11,33 @@ import unittest
 from pathlib import Path
 
 import build_corpus
-from build_corpus import COLUMNS, MAX_WORDS, MIN_WORDS, PER_SOURCE, build, cut, paragraphs
+from build_corpus import COLUMNS, MAX_WORDS, MIN_WORDS, PER_SOURCE, build, cut, sentences
 
 
-def text(paragraph_count, words_each, tag):
-    """Текст из разных абзацев по words_each слов; tag отличает источники."""
-    return "\n\n".join(
-        " ".join(f"{tag}{chr(ord('а') + n % 30)}{chr(ord('а') + w % 30)}" for w in range(words_each)) + f" {tag}{'я' * (n + 1)}."
-        for n in range(paragraph_count)
+def text(sentence_count, words_each, tag):
+    """Текст из разных предложений по words_each + 1 слов; tag отличает источники."""
+    return "\n".join(
+        " ".join(f"{tag}{chr(ord('а') + n % 30)}{chr(ord('а') + w % 30)}" for w in range(words_each)).capitalize()
+        + f" {tag}{'я' * (n + 1)}."
+        for n in range(sentence_count)
     )
 
 
-class Paragraphs(unittest.TestCase):
-    def test_blank_lines_separate_and_wrapped_lines_join(self):
-        self.assertEqual(paragraphs("Первая\nстрока.\r\n\r\n  Вторая.\n \nТретья.\n"),
-                         ["Первая строка.", "Вторая.", "Третья."])
+class Sentences(unittest.TestCase):
+    def test_splits_at_sentence_ends(self):
+        source = "Первое. Второе!\n— Третье? — спросил он. «Четвёртое»…  Пятое."
+        self.assertEqual(sentences(source),
+                         ["Первое. ", "Второе!\n", "— Третье? — спросил он. ", "«Четвёртое»…  ", "Пятое."])
 
-    def test_indent_starts_a_paragraph(self):
-        self.assertEqual(paragraphs("   Первая\nстрока.\n     Вторая\nстрока.\n\n     Третья.\n"),
-                         ["Первая строка.", "Вторая строка.", "Третья."])
+    def test_initials_and_one_letter_abbreviations_do_not_split(self):
+        source = "В 1836 г. А. С. Пушкин издал журнал. Он назывался «Современник»."
+        self.assertEqual(sentences(source),
+                         ["В 1836 г. А. С. Пушкин издал журнал. ", "Он назывался «Современник»."])
 
-    def test_without_blank_lines_and_indents_every_line_is_a_paragraph(self):
-        self.assertEqual(paragraphs("Первая.\nВторая.\n"), ["Первая.", "Вторая."])
-        self.assertEqual(paragraphs(""), [])
+    def test_nothing_is_lost(self):
+        source = "  Жил старик.\n\n   Был он хром. Но\nдобр!  "
+        self.assertEqual("".join(sentences(source)), source)
+        self.assertEqual(sentences(""), [""])
 
 
 class Cut(unittest.TestCase):
@@ -58,12 +62,14 @@ class Cut(unittest.TestCase):
     def test_fewer_fragments_from_medium_text(self):
         self.assertEqual(len(cut([60] * 20)), 2)  # 1200 слов
 
-    def test_large_paragraph_is_kept_whole(self):
-        # 280 слов мало, а со следующим абзацем выходит больше MAX_WORDS: абзац не режется.
+    def test_long_sentence_is_kept_whole(self):
+        # 280 слов мало, а со следующим предложением выходит больше MAX_WORDS: оно не режется.
         self.assertEqual(cut([200, 280, 400]), [(1, 3)])
+        self.assertEqual(cut([3000]), [(0, 1)])
 
-    def test_text_without_paragraphs_gives_nothing(self):
-        self.assertEqual(cut([3000]), [])
+    def test_start_moves_back_when_the_tail_is_too_short(self):
+        # Середина приходится на второе предложение, но после него осталось бы 277 слов.
+        self.assertEqual(cut([318, 46, 54, 38, 38, 101]), [(0, 5)])
 
 
 class Build(unittest.TestCase):
@@ -105,7 +111,7 @@ class Build(unittest.TestCase):
             self.assertEqual(row["sha256"], hashlib.sha256(data).hexdigest())
             self.assertEqual(row["source_id"], row["path"].split("/")[0])
         whole = (self.corpus / "fragments" / "vpr-4" / "01.txt").read_text(encoding="utf-8")
-        self.assertEqual(whole, "\n".join(paragraphs(text(4, 50, "в"))) + "\n")
+        self.assertEqual(whole, text(4, 50, "в") + "\n")
         self.assertIn("Источников: 2, фрагментов: 5", report)
         self.assertEqual(build(self.corpus, self.manifest)[1], [])
         self.assertEqual(self.manifest_rows(), rows)
@@ -137,10 +143,22 @@ class Build(unittest.TestCase):
         joined = "\n".join(errors)
         self.assertIn("sources/extra.txt: источника нет в sources.csv", joined)
         self.assertIn("sources/missing.txt: файла нет", joined)
-        self.assertIn("sources/tiny.txt: нет ни одного фрагмента", joined)
-        self.assertIn("sources/first.txt и sources/second.txt: общих абзацев — 6", joined)
+        self.assertIn("sources/tiny.txt: в тексте меньше 100 слов", joined)
+        self.assertIn("sources/first.txt и sources/second.txt: общих предложений — 6", joined)
         self.assertFalse((self.manifest / "fragments.csv").exists())
         self.assertFalse((self.corpus / "fragments").exists())
+
+    def test_a_couple_of_shared_sentences_is_not_a_duplicate(self):
+        first = text(10, 50, "а")
+        quote = "\n".join(first.split("\n")[:2])
+        self.sources(self.source("a", body=first), self.source("b", body=text(10, 50, "б") + "\n" + quote))
+        self.assertEqual(build(self.corpus, self.manifest)[1], [])
+
+    def test_rejects_text_without_sentence_ends(self):
+        self.sources(self.source("a", body=" ".join(["слово"] * 1200)))
+        _, errors = build(self.corpus, self.manifest)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("sources/a.txt: фрагмент 01 длиннее 1000 слов", errors[0])
 
     def test_rejects_bad_rows(self):
         self.sources(self.source("Плохой id"), self.source("ok"), self.source("ok", grade=18),
