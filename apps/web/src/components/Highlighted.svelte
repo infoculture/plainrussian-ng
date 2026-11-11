@@ -14,13 +14,28 @@
     text,
     annotation,
     clarity = null,
-  }: { text: string; annotation: Annotation; clarity?: ClarityReport | null } = $props();
+    onselect,
+  }: {
+    text: string;
+    annotation: Annotation;
+    clarity?: ClarityReport | null;
+    /** Щелчок по выделенному: фрагмент с этими смещениями нужно показать в поле ввода. */
+    onselect: (start: number, end: number) => void;
+  } = $props();
 
   let mode = $state<'words' | 'clarity'>('words');
   let showClarity = $derived(mode === 'clarity' && clarity !== null);
   let marks = $derived(showClarity && clarity ? clarityMarks(clarity) : complexWordMarks(annotation));
   let blocks = $derived(buildBlocks(text, annotation.sentences, marks));
   const words = (n: number) => `${n} ${plural(n, ['слово', 'слова', 'слов'])}`;
+
+  // Один обработчик на всю подсветку: отметок в длинном тексте тысячи.
+  function pick(event: MouseEvent) {
+    // Выделение мышью — не щелчок: текст из подсветки можно копировать.
+    if (!getSelection()?.isCollapsed) return;
+    const target = (event.target as Element).closest<HTMLElement>('[data-start]');
+    if (target) onselect(Number(target.dataset.start), Number(target.dataset.end));
+  }
 </script>
 
 <details class="highlighted" open>
@@ -49,6 +64,10 @@
   {#if text.length > HIGHLIGHT_LIMIT}
     <p class="warning">Подсвечены первые {HIGHLIGHT_LIMIT.toLocaleString('ru-RU')} знаков. Оценка посчитана по всему тексту.</p>
   {/if}
+  <p class="note">Нажмите на выделенное — оно выделится в поле ввода, и его можно сразу править.</p>
+  <!-- Щелчок — удобство для мыши. С клавиатуры к тем же местам ведут кнопки в панели
+       оценки: длинные предложения и находки ясного языка. -->
   <!-- Разметка в одну строку: переносы внутри шаблона попали бы в текст. -->
-  <div class="annotated">{#each blocks as b, i (i)}{#if b.kind === 'gap'}{b.text}{:else}<span class="s l{showClarity ? 0 : b.level}" title={words(b.words)}>{#each b.parts as p, j (j)}{#if p.mark}<mark class={p.mark.cls} title={p.mark.title}>{p.text}</mark>{:else}{p.text}{/if}{/each}</span>{/if}{/each}</div>
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="annotated" onclick={pick}>{#each blocks as b, i (i)}{#if b.kind === 'gap'}{b.text}{:else}<span class="s l{showClarity ? 0 : b.level}" title={words(b.words)} data-start={!showClarity && b.level > 0 ? b.start : undefined} data-end={!showClarity && b.level > 0 ? b.end : undefined}>{#each b.parts as p, j (j)}{#if p.mark}<mark class={p.mark.cls} title={p.mark.title} data-start={p.mark.start} data-end={p.mark.end}>{p.text}</mark>{:else}{p.text}{/if}{/each}</span>{/if}{/each}</div>
 </details>

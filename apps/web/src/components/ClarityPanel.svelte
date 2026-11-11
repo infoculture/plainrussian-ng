@@ -1,6 +1,6 @@
 <script lang="ts">
   import { CLARITY_KINDS } from '../lib/clarity';
-  import type { ClarityReport } from '../lib/types';
+  import type { ClarityKind, ClarityReport } from '../lib/types';
 
   let {
     state,
@@ -8,13 +8,35 @@
     error,
     onenable,
     ondisable,
+    onselect,
   }: {
     state: 'off' | 'loading' | 'ready' | 'error';
     report: ClarityReport | null;
     error: string;
     onenable: () => void;
     ondisable: () => void;
+    /** Находку с этими смещениями нужно показать в поле ввода. */
+    onselect: (start: number, end: number) => void;
   } = $props();
+
+  // Какая находка каждого вида показана последней. С новым отчётом счёт начинается
+  // заново: после правки смещения и сами находки другие.
+  let seen: ClarityReport | null = null;
+  let shown: Partial<Record<ClarityKind, number>> = {};
+
+  /** Каждое нажатие ведёт к следующей находке этого вида, после последней — к первой. */
+  function next(kind: ClarityKind) {
+    if (!report) return;
+    if (seen !== report) {
+      seen = report;
+      shown = {};
+    }
+    const found = report.findings.filter((f) => f.kind === kind);
+    if (!found.length) return;
+    const index = ((shown[kind] ?? -1) + 1) % found.length;
+    shown[kind] = index;
+    onselect(found[index].start, found[index].end);
+  }
 
   /** Неповторяющиеся примеры в порядке появления. */
   function examples(kind: string, limit = 4): string[] {
@@ -51,18 +73,26 @@
         {#each CLARITY_KINDS as k (k.kind)}
           {#if report.counts[k.kind] > 0}
             <li>
-              <div class="clarity-head">
+              <button
+                type="button"
+                class="clarity-head"
+                title="Перейти к следующей находке в тексте"
+                onclick={() => next(k.kind)}
+              >
                 <span class="clarity-{k.kind} swatch" aria-hidden="true"></span>
                 <span>{k.label}</span>
                 <span class="num">{report.counts[k.kind]}</span>
-              </div>
+              </button>
               <p class="note">{examples(k.kind).map((e) => `«${e}»`).join(', ')}</p>
               <p class="note advice">{k.advice}</p>
             </li>
           {/if}
         {/each}
       </ul>
-      <p class="note">Находки можно подсветить в тексте: переключатель «Ясный язык» над подсветкой.</p>
+      <p class="note">
+        Нажмите на вид находок — следующая выделится в поле ввода. Все находки сразу подсвечивает
+        переключатель «Ясный язык» над подсветкой.
+      </p>
     {/if}
     <button type="button" class="link" onclick={ondisable}>Выключить проверку</button>
   {/if}
