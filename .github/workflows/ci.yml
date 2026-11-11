@@ -115,9 +115,27 @@ jobs:
         with:
           tool: wasm-bindgen@${{ env.WASM_BINDGEN }}
       - name: Системные библиотеки Tauri
+        # Зеркала Ubuntu у сборщиков GitHub временами не отвечают: имена не разрешаются,
+        # индекс пакетов остаётся старым, и установка падает с 404 или висит часами.
+        # Поэтому соединения ограничены по времени, команды повторяются, а у шага есть предел.
+        timeout-minutes: 25
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+          apt_get() {
+            sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 \
+              -o Acquire::https::Timeout=20 "$@"
+          }
+          retry() {
+            for attempt in 1 2 3 4; do
+              "$@" && return 0
+              echo "::warning::Попытка $attempt не удалась: $*"
+              sleep $((attempt * 20))
+            done
+            "$@"
+          }
+          # Error-Mode=any: неполное обновление индекса — ошибка, и оно повторяется.
+          # Если индекс так и не обновился, ставим со старым: вдруг пакеты не менялись.
+          retry apt_get -o APT::Update::Error-Mode=any update || true
+          retry apt_get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
             librsvg2-dev libxdo-dev libssl-dev libdbus-1-dev patchelf
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
