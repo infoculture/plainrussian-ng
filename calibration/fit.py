@@ -20,12 +20,23 @@
 
 Запуск из корня репозитория:
     python3 calibration/fit.py --version 2026.1
+
+Новый корпус (calibration/graded, см. build_corpus.py) подбирается с ключом --graded:
+    python3 calibration/fit.py --version 2027.1 --graded
+
+Вход — sources.csv, fragments.csv и features.jsonl из calibration/graded. Коэффициенты
+подбираются на фрагментах с split=fit. Проверка — исключение по источникам: формула
+подбирается без всех фрагментов источника и проверяется на них, иначе соседние
+фрагменты одной книги занижают ошибку. Фрагменты с split=test в подборе не участвуют,
+ошибка на них считается отдельно. Для сравнения на тех же фрагментах считается ошибка
+прежней калибровки (--baseline).
 """
 
 import argparse
 import csv
 import datetime
 import json
+import sys
 from math import sqrt
 from pathlib import Path
 
@@ -34,6 +45,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent
 CEILING = 17
 DIGITS = 4
+# Действующая калибровка: с ней сравнивается подбор по новому корпусу.
+BASELINE = "2026.1"
 
 FORMULAS = {
     "fk": ("Flesch-Kincaid", ["слов в предложении", "слогов в слове"]),
@@ -87,11 +100,19 @@ def fit_lad(X, y, iterations=500):
     return theta
 
 
-def loo_predictions(X, y):
+def signed(y, pred):
+    """Ошибка со знаком: плюс — формула завышает уровень."""
+    diff = pred - y
+    diff[(y >= CEILING) & (pred >= CEILING)] = 0.0
+    return diff
+
+
+def loo_predictions(X, y, groups):
+    """Прогноз для каждого текста формулой, подобранной без текстов его группы."""
     pred = np.empty_like(y)
-    for i in range(len(y)):
-        mask = np.arange(len(y)) != i
-        pred[i] = X[i] @ fit_lad(X[mask], y[mask])
+    for group in np.unique(groups):
+        held = groups == group
+        pred[held] = X[held] @ fit_lad(X[~held], y[~held])
     return pred
 
 
@@ -100,16 +121,33 @@ def summary(err):
             "within_2": round(float((err <= 2).mean()), 3)}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--version", required=True)
-    args = parser.parse_args()
+    parser.add_argument("--graded", nargs="?", type=Path, const=ROOT / "graded", metavar="КАТАЛОГ",
+                        help="подбор по новому корпусу; каталог с sources.csv, fragments.csv "
+                             "и features.jsonl, по умолчанию calibration/graded")
+    parser.add_argument("--baseline", default=BASELINE,
+                        help="версия калибровки для сравнения на новом корпусе")
+    parser.add_argument("--out", type=Path, default=ROOT, help="куда писать <версия>.json и REPORT.md")
+    args = parser.parse_args(argv)
 
+    result = fit_graded(args) if args.graded else fit_legacy(args)
+    out = args.out / f"{args.version}.json"
+    out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (write_graded_report if args.graded else write_report)(result, args.out / "REPORT.md")
+    print(json.dumps(result["formulas"], ensure_ascii=False, indent=1))
+    print("average", result["average"])
+
+
+def fit_legacy(args):
     with (ROOT / "corpus.csv").open(encoding="utf-8") as f:
         corpus = {r["path"]: r for r in csv.DictReader(f)}
-    rows = [json.loads(line) for line in (ROOT / "features.jsonl").open(encoding="utf-8")]
+    rows = [json.loads(line) for line in (ROOT / "features.jsonl").read_text(encoding="utf-8").splitlines()]
     rows = [r for r in rows if corpus[r["path"]]["fit"] == "1"]
     y = np.array([float(corpus[r["path"]]["grade"]) for r in rows])
+    # Каждый текст — своя группа: проверка с исключением по одному.
+    groups = np.arange(len(y))
 
     result = {"version": args.version, "created": datetime.date.today().isoformat(),
               "texts": len(rows), "ceiling": CEILING, "formulas": {}}
@@ -120,9 +158,9 @@ def main():
         X_old = np.array([features(r["legacy"], key) for r in rows])
         pred = {
             "fit": X @ np.array(coef),
-            "loo": loo_predictions(X, y),
+            "loo": loo_predictions(X, y, groups),
             "legacy": X_old @ np.array(LEGACY_COEF[key]),
-            "legacy_refit_loo": loo_predictions(X_old, y),
+            "legacy_refit_loo": loo_predictions(X_old, y, groups),
         }
         result["formulas"][key] = {"title": title, "features": names, "coef": coef}
         for name, p in pred.items():
@@ -132,12 +170,144 @@ def main():
     result["average"] = {"title": "Среднее пяти формул"}
     for name, p in preds.items():
         result["average"][name] = summary(errors(y, np.mean(p, axis=0)))
+    return result
 
-    out = ROOT / f"{args.version}.json"
-    out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    write_report(result, ROOT / "REPORT.md")
-    print(json.dumps(result["formulas"], ensure_ascii=False, indent=1))
-    print("average", result["average"])
+
+def load_graded(manifest):
+    """Фрагменты нового корпуса: пары (счётчики, строка источника из sources.csv)."""
+    for name in ("sources.csv", "fragments.csv", "features.jsonl"):
+        if not (manifest / name).is_file():
+            sys.exit(f"нет файла {manifest / name}: порядок сбора корпуса описан в build_corpus.py")
+    with (manifest / "sources.csv").open(encoding="utf-8-sig", newline="") as f:
+        sources = {r["source_id"]: r for r in csv.DictReader(f)}
+    with (manifest / "fragments.csv").open(encoding="utf-8", newline="") as f:
+        fragments = {r["path"]: r["source_id"] for r in csv.DictReader(f)}
+    rows = [json.loads(line) for line in (manifest / "features.jsonl").read_text(encoding="utf-8").splitlines()]
+    if {r["path"] for r in rows} != set(fragments):
+        sys.exit("features.jsonl не совпадает с fragments.csv: пересчитайте признаки фрагментов")
+    return [(r["counts"], sources[fragments[r["path"]]]) for r in rows]
+
+
+def breakdown(keys, groups, y, preds):
+    """Ошибка и смещение оценок по частям корпуса: уровням или типам источников."""
+    rows = []
+    for key in sorted(set(keys)):
+        mask = np.array([k == key for k in keys])
+        row = {"key": key, "sources": len(set(groups[mask])), "texts": int(mask.sum())}
+        for name, pred in preds.items():
+            diff = signed(y[mask], pred[mask])
+            row[name] = {"mae": round(float(np.abs(diff).mean()), 3), "bias": round(float(diff.mean()), 3)}
+        rows.append(row)
+    return rows
+
+
+def fit_graded(args):
+    data = load_graded(args.graded)
+    baseline = json.loads((ROOT / f"{args.baseline}.json").read_text(encoding="utf-8"))["formulas"]
+    parts = {}
+    for split in ("fit", "test"):
+        chosen = [(counts, source) for counts, source in data if source["split"] == split]
+        parts[split] = ([counts for counts, _ in chosen], [source for _, source in chosen],
+                        np.array([float(source["grade"]) for _, source in chosen]))
+    counts, sources, y = parts["fit"]
+    test_counts, _, test_y = parts["test"]
+    groups = np.array([source["source_id"] for source in sources])
+    if len(set(groups)) < 2:
+        sys.exit("для подбора нужны фрагменты хотя бы двух источников с split=fit")
+
+    result = {"version": args.version, "created": datetime.date.today().isoformat(),
+              "corpus": "graded", "texts": len(y), "sources": len(set(groups)),
+              "test_texts": len(test_y), "ceiling": CEILING, "baseline": args.baseline, "formulas": {}}
+    preds = {"fit": [], "loo": [], "baseline": []}
+    test_preds = {"test": [], "baseline_test": []}
+    for key, (title, names) in FORMULAS.items():
+        X = np.array([features(c, key) for c in counts])
+        coef = [round(float(v), DIGITS) for v in fit_lad(X, y)]
+        old = baseline[key]["coef"]
+        entry = {"title": title, "features": names, "coef": coef}
+        pred = {"fit": X @ np.array(coef), "loo": loo_predictions(X, y, groups), "baseline": X @ np.array(old)}
+        for name, p in pred.items():
+            preds[name].append(p)
+            entry[name] = summary(errors(y, p))
+        if len(test_y):
+            X_test = np.array([features(c, key) for c in test_counts])
+            for name, c in (("test", coef), ("baseline_test", old)):
+                test_preds[name].append(X_test @ np.array(c))
+                entry[name] = summary(errors(test_y, test_preds[name][-1]))
+        result["formulas"][key] = entry
+    # Главная оценка — среднее пяти формул.
+    mean = {name: np.mean(p, axis=0) for name, p in preds.items()}
+    result["average"] = {"title": "Среднее пяти формул"}
+    for name, p in mean.items():
+        result["average"][name] = summary(errors(y, p))
+    if len(test_y):
+        for name, p in test_preds.items():
+            result["average"][name] = summary(errors(test_y, np.mean(p, axis=0)))
+    checked = {"loo": mean["loo"], "baseline": mean["baseline"]}
+    result["levels"] = breakdown([int(v) for v in y], groups, y, checked)
+    result["source_types"] = breakdown([s["source_type"] for s in sources], groups, y, checked)
+    return result
+
+
+def write_graded_report(r, path):
+    f = r["formulas"]
+    test = r["test_texts"] > 0
+    lines = [
+        f"# Калибровка {r['version']}",
+        "",
+        f"Создана {r['created']} скриптом `calibration/fit.py --graded` на {r['texts']} фрагментах",
+        f"из {r['sources']} источников нового корпуса (`calibration/graded`, split=fit).",
+        f"Ошибка — разница с уровнем источника в годах обучения; уровень {r['ceiling']} означает",
+        f"«{r['ceiling']} и выше», прогноз от {r['ceiling']} для такого текста считается верным.",
+        "",
+        "## Средняя ошибка, лет обучения",
+        "",
+        "Проверка — исключение по источникам: формула подбирается без всех фрагментов источника",
+        "и проверяется на них. Это честная оценка на новых текстах.",
+        f"Калибровка {r['baseline']} — прежние коэффициенты на тех же фрагментах.",
+    ]
+    if test:
+        lines.append(f"Отложенные — {r['test_texts']} фрагментов с split=test, в подборе их нет.")
+    head = [f"Калибровка {r['baseline']}", "Новая, проверка", "Новая, на обучении", "Новая, макс. в проверке"]
+    names = ["baseline", "loo", "fit"]
+    if test:
+        head += [f"Отложенные, {r['baseline']}", "Отложенные, новая"]
+    lines += ["", "| Формула | " + " | ".join(head) + " |", "|---|" + "---:|" * len(head)]
+    for v in [*f.values(), r["average"]]:
+        cells = [v[name]["mae"] for name in names] + [v["loo"]["max"]]
+        if test:
+            cells += [v["baseline_test"]["mae"], v["test"]["mae"]]
+        lines.append(f"| {v['title']} | " + " | ".join(str(c) for c in cells) + " |")
+    for title, first, rows in (("По уровням", "Уровень", r["levels"]),
+                               ("По типам источников", "Тип", r["source_types"])):
+        lines += [
+            "",
+            f"## {title}",
+            "",
+            "Среднее пяти формул в проверке по источникам. Смещение — средняя разница оценки",
+            "и уровня: плюс значит, что оценка завышена.",
+            "",
+            f"| {first} | Источников | Фрагментов | Ошибка {r['baseline']} | Смещение {r['baseline']} "
+            "| Ошибка новой | Смещение новой |",
+            "|---|---:|---:|---:|---:|---:|---:|",
+        ]
+        for row in rows:
+            lines.append(f"| {row['key']} | {row['sources']} | {row['texts']} | {row['baseline']['mae']} | "
+                         f"{row['baseline']['bias']:+} | {row['loo']['mae']} | {row['loo']['bias']:+} |")
+    lines += [
+        "",
+        "## Коэффициенты",
+        "",
+        "Каждая формула: `коэффициенты × признаки + свободный член`.",
+        "",
+        "| Формула | Признаки | Коэффициенты | Свободный член |",
+        "|---|---|---|---:|",
+    ]
+    for v in f.values():
+        lines.append(f"| {v['title']} | {', '.join(v['features'])} | "
+                     f"{', '.join(str(c) for c in v['coef'][:-1])} | {v['coef'][-1]} |")
+    lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def write_report(r, path):
