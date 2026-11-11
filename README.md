@@ -292,9 +292,20 @@ python3 calibration/build_corpus.py <корпус>
 cargo run -p pr-core --example corpus_features -- <корпус>/fragments > calibration/graded/features.jsonl
 ```
 
-`fit.py` пока подбирает коэффициенты только по старому корпусу.
+4. Подобрать коэффициенты по фрагментам с `split=fit`:
 
-Тесты скрипта:
+```bash
+python3 calibration/fit.py --version 2027.1 --graded
+```
+
+   Проверка идёт с исключением по источникам: формула подбирается без всех фрагментов
+   источника и проверяется на них. Отчёт показывает ошибку и смещение оценки по уровням
+   и типам источников, ошибку на фрагментах с `split=test` и ошибку действующей
+   калибровки на тех же фрагментах.
+5. Перенести коэффициенты в `crates/pr-core/src/readability.rs`, как при любой смене
+   калибровки.
+
+Тесты скриптов (нужен numpy):
 
 ```bash
 python3 -m unittest discover -s calibration
