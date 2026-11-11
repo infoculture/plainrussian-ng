@@ -1,6 +1,14 @@
 <script lang="ts">
   import type { Measurement } from '../lib/types';
   import { plural } from '../lib/segments';
+  import {
+    AUDIENCES,
+    SCALE_MAX as MAX,
+    SCALE_MIN as MIN,
+    audience,
+    setAudience,
+    verdict,
+  } from '../lib/target.svelte.ts';
 
   let { measurement }: { measurement: Measurement } = $props();
 
@@ -13,11 +21,14 @@
   let tooShort = $derived(c.sentences < 2 || c.words < 10);
 
   // Корпус размечен от 1 до 17 («17 и выше»), за этими границами формулы экстраполируют.
-  const MIN = 1;
-  const MAX = 17;
   let average = $derived(ix?.average.value ?? 0);
   let score = $derived(average < MIN ? `<${MIN}` : average >= MAX ? `${MAX}+` : fmt(average, 1));
   let years = $derived(plural(Math.min(Math.max(Math.round(average), MIN), MAX), ['год', 'года', 'лет']));
+
+  // Цель: оценка сравнивается с верхней границей выбранной аудитории.
+  let goal = $derived(audience());
+  let outcome = $derived(verdict(average, goal, calibration.average_error));
+  let position = $derived(Math.min(Math.max(average, MIN), MAX) - MIN);
 
   let formulas = $derived(
     ix
@@ -40,6 +51,29 @@
       <div class="audience">{ix.average.grade}</div>
     </div>
   </div>
+
+  <label class="target">
+    Для кого текст
+    <select value={goal.id} onchange={(e) => setAudience(e.currentTarget.value)}>
+      {#each AUDIENCES as a (a.id)}
+        <option value={a.id}>{a.title}</option>
+      {/each}
+    </select>
+  </label>
+  <!-- Шкала: закрашена зона цели, отметка — оценка текста. Размеры — атрибутами SVG:
+       встроенные стили запрещает CSP. Смысл дублирует вердикт под шкалой. -->
+  <svg class="scale" viewBox="0 0 {MAX - MIN} 2" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <rect class="scale-track" y="0.6" width={MAX - MIN} height="0.8" />
+    <rect class="scale-zone" y="0.6" width={goal.max - MIN} height="0.8" />
+    <line class="scale-mark {outcome.level}" x1={position} x2={position} y1="0" y2="2" vector-effect="non-scaling-stroke" />
+  </svg>
+  <div class="scale-ends">
+    <span aria-hidden="true">{MIN}</span>
+    <span>цель — до {goal.max} лет обучения</span>
+    <span aria-hidden="true">{MAX}+</span>
+  </div>
+  <p class="verdict {outcome.level}">{outcome.text}</p>
+
   <p class="note">
     Среднее пяти формул по шкале от {MIN} до {MAX}+ лет обучения. На размеченных текстах
     оценка ошибается в среднем на {fmt(calibration.average_error, 1)} года.
