@@ -4,6 +4,7 @@
 // приложении OpenAI-совместимые запросы делает Rust, поэтому годится любой адрес,
 // а GigaChat доступен только там: у его API нет CORS.
 import type { Assessment } from './assessment.ts';
+import { extractRewrite, partialRewrite, type Prompt } from './rewrite.ts';
 import { isDesktop } from '../platform.ts';
 
 export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'gigachat' | 'ollama' | 'lmstudio' | 'custom';
@@ -165,12 +166,18 @@ function checkBrowserUrl(p: Provider, baseUrl: string): void {
 /** Ошибка, понятная пользователю. */
 export class LlmError extends Error {}
 
-export async function assess(text: string, req: Request, signal?: AbortSignal): Promise<Assessment> {
+/** Хватает ли настроек для запроса; возвращает провайдера. */
+function checkRequest(req: Request): Provider {
   const p = provider(req.provider);
   if (!req.baseUrl.trim()) throw new LlmError('Укажите адрес API.');
   if (!req.model.trim()) throw new LlmError('Укажите модель.');
   if (p.key === 'required' && !req.apiKey.trim()) throw new LlmError(`Укажите ключ API ${p.title}.`);
   checkBrowserUrl(p, req.baseUrl);
+  return p;
+}
+
+export async function assess(text: string, req: Request, signal?: AbortSignal): Promise<Assessment> {
+  const p = checkRequest(req);
   // Адаптеры загружаются только при первом запросе: SDK Anthropic немаленький.
   if (p.kind === 'anthropic') {
     const { assessWithAnthropic } = await import('./anthropic.ts');
@@ -178,6 +185,31 @@ export async function assess(text: string, req: Request, signal?: AbortSignal): 
   }
   const { assessWithOpenAI } = await import('./openai.ts');
   return assessWithOpenAI(text, req, signal);
+}
+
+/**
+ * Переписывает текст по запросу из rewritePrompt; возвращает только новый текст.
+ * `onText` получает уже написанную часть, если провайдер отдаёт ответ потоком.
+ */
+export async function rewrite(
+  prompt: Prompt,
+  req: Request,
+  signal?: AbortSignal,
+  onText?: (partial: string) => void,
+): Promise<string> {
+  const p = checkRequest(req);
+  const onAnswer = onText && ((answer: string) => onText(partialRewrite(answer)));
+  let answer: string;
+  if (p.kind === 'anthropic') {
+    const { rewriteWithAnthropic } = await import('./anthropic.ts');
+    answer = await rewriteWithAnthropic(prompt, req, signal, onAnswer);
+  } else {
+    const { rewriteWithOpenAI } = await import('./openai.ts');
+    answer = await rewriteWithOpenAI(prompt, req, signal, onAnswer);
+  }
+  const text = extractRewrite(answer);
+  if (text === null) throw new LlmError('Модель не вернула переписанный текст. Попробуйте ещё раз или другую модель.');
+  return text;
 }
 
 export async function listModels(req: Request, signal?: AbortSignal): Promise<string[]> {

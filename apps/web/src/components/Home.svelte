@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { Analyzer } from '../lib/analyzer';
   // В имени файла сборки — хеш содержимого: новый словарь не застрянет в кеше.
   import dictionaryAsset from '../wasm/clarity-pkg/ru.dict.gz?url';
@@ -12,7 +12,7 @@
   import type { Analysis, ClarityReport, Measurement } from '../lib/types';
   import ClarityPanel from './ClarityPanel.svelte';
   import Highlighted from './Highlighted.svelte';
-  import LlmPanel from './LlmPanel.svelte';
+  import LlmBar from './LlmBar.svelte';
   import Results from './Results.svelte';
 
   const analyzer = new Analyzer();
@@ -66,7 +66,32 @@
     // Смещения относятся к тексту, по которому построена разметка. Если текст уже
     // правили, а новая разметка ещё считается, они указывают не туда.
     if (analysis?.text !== text) return;
+    selectText(start, end);
+  }
+
+  /** Выделяет фрагмент текущего текста поля. */
+  function selectText(start: number, end: number) {
     selectRange(textarea, start, end);
+    trackSelection();
+  }
+
+  // Выделение в поле: его можно переписать с помощью LLM. Вместе с ним хранится текст,
+  // в котором выделяли: после замены текста целиком прежние смещения не годятся.
+  let selection = $state({ text: '', start: 0, end: 0 });
+
+  function trackSelection() {
+    selection = { text: textarea.value, start: textarea.selectionStart, end: textarea.selectionEnd };
+  }
+
+  /** Переписанный текст. Прежний вариант становится исходным для «Было и стало». */
+  async function applyRewrite(next: string, range: { start: number; end: number } | null) {
+    if (analysis?.text === text) remember();
+    text = next;
+    // Переписанный фрагмент выделяется, чтобы было видно, что изменилось.
+    if (range) {
+      await tick();
+      selectText(range.start, range.end);
+    }
   }
 
   // Проверки ясного языка: словарь загружается при включении и затем лежит в кеше.
@@ -242,7 +267,11 @@
         // Вставленный целиком текст — новый исходный вариант, как открытый файл.
         if (pasteAll && e instanceof InputEvent && e.inputType === 'insertFromPaste') pin = true;
         pasteAll = false;
+        trackSelection();
       }}
+      onselect={trackSelection}
+      onkeyup={trackSelection}
+      onmouseup={trackSelection}
       placeholder="Вставьте текст или перетащите сюда файл: txt, html, docx, pdf"
       spellcheck="false"
     ></textarea>
@@ -256,6 +285,17 @@
         {#if source?.text === text}<span> · {source.url}</span>{/if}
       {/if}
     </div>
+    <LlmBar
+      {text}
+      {analysis}
+      {clarity}
+      {selection}
+      {formula}
+      measure={(draft) => analyzer.measure(draft)}
+      onselect={selectText}
+      onapply={applyRewrite}
+      onrestore={(previous) => (text = previous)}
+    />
   </section>
 
   {#if analysis}
@@ -291,7 +331,6 @@
       ondisable={disableClarity}
       onselect={select}
     />
-    <LlmPanel {text} {formula} />
     <p class="note"><a href="#about">Как считается оценка</a></p>
   </aside>
 </div>

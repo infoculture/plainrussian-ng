@@ -1,9 +1,11 @@
-// Оценка через Claude: официальный SDK, структурированный вывод по схеме Assessment.
+// Запросы к Claude через официальный SDK: оценка — структурированным выводом по
+// схеме Assessment, переписывание — обычным текстом.
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { SYSTEM_PROMPT, userMessage } from './assessment.ts';
 import { Assessment } from './schema.ts';
 import { LlmError, type Request } from './providers.ts';
+import type { Prompt } from './rewrite.ts';
 
 // Для этих моделей при отказе по соображениям безопасности API само повторит
 // запрос на рекомендованной модели (fallbacks: 'default').
@@ -15,41 +17,92 @@ const EFFORT = new Set([
   'claude-opus-4-7', 'claude-sonnet-5-5', 'claude-sonnet-5', 'claude-haiku-5-5',
 ]);
 
+function client(req: Request): Anthropic {
+  // Ключ пользователя, запрос прямо из браузера: SDK добавит заголовок
+  // anthropic-dangerous-direct-browser-access.
+  return new Anthropic({ apiKey: req.apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 });
+}
+
+/** Откат на другую модель при отказе — там, где API его поддерживает. */
+function fallback(model: string) {
+  return SERVER_FALLBACK.has(model)
+    ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }
+    : {};
+}
+
+/** Ни оценка читаемости, ни переписывание — не самые трудные задачи, medium хватает. */
+function effort(model: string) {
+  return EFFORT.has(model) ? { effort: 'medium' as const } : {};
+}
+
+/** Отказ и оборванный ответ — ошибки, понятные пользователю. `task` — «оценивать», «переписывать». */
+function checkStop(stopReason: string | null, task: string): void {
+  if (stopReason === 'refusal') throw new LlmError(`Модель отказалась ${task} этот текст.`);
+  if (stopReason === 'max_tokens') {
+    throw new LlmError('Ответ модели оборвался: текст слишком длинный для одного запроса.');
+  }
+}
+
 export async function assessWithAnthropic(
   text: string,
   req: Request,
   signal?: AbortSignal,
 ): Promise<Assessment> {
-  // Ключ пользователя, запрос прямо из браузера: SDK добавит заголовок
-  // anthropic-dangerous-direct-browser-access.
-  const client = new Anthropic({ apiKey: req.apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 });
-  const fallback = SERVER_FALLBACK.has(req.model);
   try {
-    const response = await client.beta.messages.parse(
+    const response = await client(req).beta.messages.parse(
       {
         model: req.model,
         max_tokens: 16000,
-        ...(fallback ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
-        output_config: {
-          // Оценка читаемости — не самая трудная задача, medium хватает.
-          ...(EFFORT.has(req.model) ? { effort: 'medium' as const } : {}),
-          format: betaZodOutputFormat(Assessment),
-        },
+        ...fallback(req.model),
+        output_config: { ...effort(req.model), format: betaZodOutputFormat(Assessment) },
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage(text) }],
       },
       { signal },
     );
-    if (response.stop_reason === 'refusal') {
-      throw new LlmError('Модель отказалась оценивать этот текст.');
-    }
-    if (response.stop_reason === 'max_tokens') {
-      throw new LlmError('Ответ модели оборвался: текст слишком длинный для одного запроса.');
-    }
+    checkStop(response.stop_reason, 'оценивать');
     if (!response.parsed_output) {
       throw new LlmError('Модель ответила не по схеме. Попробуйте ещё раз.');
     }
     return response.parsed_output;
+  } catch (e) {
+    throw explain(e, req.model);
+  }
+}
+
+/**
+ * Переписанный текст длиннее оценки, поэтому запрос потоковый: SDK не держит
+ * долгий запрос с большим max_tokens без потока. `onAnswer` получает ответ,
+ * написанный к этому моменту; возвращается ответ целиком.
+ */
+export async function rewriteWithAnthropic(
+  prompt: Prompt,
+  req: Request,
+  signal?: AbortSignal,
+  onAnswer?: (answer: string) => void,
+): Promise<string> {
+  try {
+    const stream = client(req).beta.messages.stream(
+      {
+        model: req.model,
+        max_tokens: 64000,
+        ...fallback(req.model),
+        output_config: effort(req.model),
+        system: prompt.system,
+        messages: [{ role: 'user', content: prompt.user }],
+      },
+      { signal },
+    );
+    let answer = '';
+    if (onAnswer) {
+      stream.on('text', (delta) => {
+        answer += delta;
+        onAnswer(answer);
+      });
+    }
+    const response = await stream.finalMessage();
+    checkStop(response.stop_reason, 'переписывать');
+    return response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
   } catch (e) {
     throw explain(e, req.model);
   }
