@@ -9,7 +9,7 @@
   import { fetchPage, isDesktop } from '../lib/platform';
   import { SAMPLES } from '../lib/samples';
   import { charCount } from '../lib/segments';
-  import type { Analysis, ClarityReport } from '../lib/types';
+  import type { Analysis, ClarityReport, Measurement } from '../lib/types';
   import ClarityPanel from './ClarityPanel.svelte';
   import Highlighted from './Highlighted.svelte';
   import LlmPanel from './LlmPanel.svelte';
@@ -37,6 +37,29 @@
   let source = $state<{ url: string; text: string } | null>(null);
   let fileInput: HTMLInputElement;
   let textarea: HTMLTextAreaElement;
+
+  // «Было и стало»: показатели исходного варианта, с которым сравнивается правленый текст.
+  let baseline = $state.raw<{ text: string; measurement: Measurement } | null>(null);
+  // Исходным станет следующий посчитанный вариант: текст только что заменили целиком.
+  let pin = false;
+  // Вставка заменяет весь текст поля (или поле пустое).
+  let pasteAll = false;
+
+  /** Запоминает текущий вариант как исходный. Варианту без слов сравнивать нечего. */
+  function remember() {
+    baseline =
+      analysis && analysis.result.measurement.indexes
+        ? { text: analysis.text, measurement: analysis.result.measurement }
+        : null;
+  }
+
+  /** Новый текст целиком — файл, страница, пример: его оценка станет исходной. */
+  function load(next: string) {
+    // Тот же текст заново не пересчитывается, поэтому запоминаем уже готовую оценку.
+    if (next === text && analysis?.text === text) remember();
+    else pin = true;
+    text = next;
+  }
 
   /** Переход от находки к месту в тексте: фрагмент выделяется в поле ввода. */
   function select(start: number, end: number) {
@@ -90,6 +113,7 @@
     if (!current.trim()) {
       analyzer.cancel();
       analysis = null;
+      baseline = null;
       analyzeError = '';
       busy = false;
       // Пустой текст тоже проверяется: так при включённой проверке загрузится словарь,
@@ -105,6 +129,10 @@
           analysis = { text: current, result };
           analyzeError = '';
           busy = false;
+          if (pin) {
+            pin = false;
+            remember();
+          }
           runClarity(current);
         }
       } catch (e) {
@@ -121,7 +149,7 @@
     if (!file) return;
     error = '';
     try {
-      text = await readFileText(file);
+      load(await readFileText(file));
     } catch (e) {
       error = e instanceof ImportError ? e.message : `Не удалось прочитать «${file.name}»: ${(e as Error).message}`;
     }
@@ -133,8 +161,9 @@
     loadingUrl = true;
     try {
       const page = await fetchPage(url.trim());
-      text = await pageToText(page);
-      source = { url: page.url, text };
+      const loaded = await pageToText(page);
+      load(loaded);
+      source = { url: page.url, text: loaded };
       urlOpen = false;
     } catch (e) {
       // Команды Rust возвращают ошибку строкой с готовым сообщением.
@@ -181,7 +210,7 @@
         }}
       />
       {#each SAMPLES as sample (sample.title)}
-        <button type="button" class="secondary" onclick={() => (text = sample.text)}>{sample.title}</button>
+        <button type="button" class="secondary" onclick={() => load(sample.text)}>{sample.title}</button>
       {/each}
       {#if text}
         <button type="button" class="secondary" onclick={() => (text = '')}>Очистить</button>
@@ -205,6 +234,15 @@
     <textarea
       bind:this={textarea}
       bind:value={text}
+      onpaste={(e) => {
+        const area = e.currentTarget;
+        pasteAll = area.selectionStart === 0 && area.selectionEnd === area.value.length;
+      }}
+      oninput={(e) => {
+        // Вставленный целиком текст — новый исходный вариант, как открытый файл.
+        if (pasteAll && e instanceof InputEvent && e.inputType === 'insertFromPaste') pin = true;
+        pasteAll = false;
+      }}
       placeholder="Вставьте текст или перетащите сюда файл: txt, html, docx, pdf"
       spellcheck="false"
     ></textarea>
@@ -238,6 +276,9 @@
         text={analysis.text}
         sentences={analysis.result.annotation.sentences}
         onselect={select}
+        baseline={baseline?.measurement ?? null}
+        edited={baseline !== null && baseline.text !== analysis.text}
+        onremember={remember}
       />
     {:else}
       <p class="empty">Здесь появится оценка: уровень образования, нужный для понимания текста, и подробные показатели.</p>
