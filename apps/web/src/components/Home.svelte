@@ -9,6 +9,7 @@
   import { fetchPage, isDesktop } from '../lib/platform';
   import { SAMPLES } from '../lib/samples';
   import { charCount } from '../lib/segments';
+  import { reloadOnUpdate, takeSavedText } from '../lib/update';
   import type { Analysis, ClarityReport, Measurement } from '../lib/types';
   import ClarityPanel from './ClarityPanel.svelte';
   import Highlighted from './Highlighted.svelte';
@@ -17,7 +18,9 @@
 
   const analyzer = new Analyzer();
 
-  let text = $state('');
+  // Текст, набранный до перезагрузки на новую версию сайта (lib/update.ts).
+  let text = $state(takeSavedText() ?? '');
+  reloadOnUpdate(() => text);
   // Разметка ссылается на смещения в том тексте, по которому она посчитана.
   // Результаты только заменяются целиком: глубокий $state над разметкой длинного текста
   // стоил бы памяти и времени.
