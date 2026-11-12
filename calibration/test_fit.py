@@ -79,10 +79,32 @@ class Graded(unittest.TestCase):
         self.assertEqual([row["key"] for row in result["levels"]], [2, 4, 6, 8, 10, 12])
         self.assertEqual([(row["key"], row["sources"], row["texts"]) for row in result["source_types"]],
                          [("textbook", 6, 18)])
-        report = (self.out / "REPORT.md").read_text(encoding="utf-8")
+        self.assertEqual([row["key"] for row in result["test_groups"]], ["exam, 9 кл."])
+        self.assertFalse(result["balanced"])
+        self.assertFalse((self.out / "REPORT.md").exists())
+        report = (self.out / "test.md").read_text(encoding="utf-8")
         for part in ("на 18 фрагментах", "из 6 источников", "## По уровням", "## По типам источников",
-                     "Отложенные — 3 фрагментов", "## Коэффициенты"):
+                     "## По жанрам", "## Отложенные тексты", "Отложенные — 3 фрагментов", "## Коэффициенты"):
             self.assertIn(part, report)
+        self.assertNotIn("--balance", report)
+
+    def test_balance_gives_every_level_equal_weight(self):
+        y = np.array([2.0, 2.0, 2.0, 5.0])
+        np.testing.assert_allclose(fit.balanced(y), [2 / 3, 2 / 3, 2 / 3, 2.0])
+        # Формула из одного свободного члена даёт медиану: без весов её задаёт частый уровень,
+        # с весами каждый из трёх уровней весит одинаково и медианой становится средний.
+        X = np.ones((6, 1))
+        y = np.array([2.0, 2.0, 2.0, 2.0, 5.0, 8.0])
+        np.testing.assert_allclose(fit.fit_lad(X, y), [2.0], atol=1e-3)
+        np.testing.assert_allclose(fit.fit_lad(X, y, weights=fit.balanced(y)), [5.0], atol=1e-3)
+        run("--version", "school", "--graded", str(self.manifest), "--balance", "--out", str(self.out))
+        result = json.loads((self.out / "school.json").read_text(encoding="utf-8"))
+        self.assertTrue(result["balanced"])
+        self.assertIn("--balance", (self.out / "school.md").read_text(encoding="utf-8"))
+
+    def test_balance_needs_graded(self):
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            run("--version", "x", "--balance")
 
     def test_rejects_features_that_do_not_match_fragments(self):
         (self.manifest / "features.jsonl").write_text("\n".join(self.features[1:]) + "\n", encoding="utf-8")
