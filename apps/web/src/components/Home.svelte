@@ -12,9 +12,8 @@
   import type { Analysis, ClarityReport, Measurement } from '../lib/types';
   import ClarityPanel from './ClarityPanel.svelte';
   import Highlighted from './Highlighted.svelte';
-  import LlmPanel from './LlmPanel.svelte';
+  import LlmBar from './LlmBar.svelte';
   import Results from './Results.svelte';
-  import RewritePanel from './RewritePanel.svelte';
 
   const analyzer = new Analyzer();
 
@@ -282,6 +281,16 @@
         {#if source?.text === text}<span> · {source.url}</span>{/if}
       {/if}
     </div>
+    <LlmBar
+      {text}
+      {analysis}
+      {clarity}
+      {selection}
+      {formula}
+      measure={(draft) => analyzer.measure(draft)}
+      onapply={applyRewrite}
+      onrestore={(previous) => (text = previous)}
+    />
   </section>
 
   {#if analysis}
@@ -316,15 +325,6 @@
       onenable={enableClarity}
       ondisable={disableClarity}
       onselect={select}
-    />
-    <LlmPanel {text} {formula} />
-    <RewritePanel
-      {text}
-      {analysis}
-      {clarity}
-      {selection}
-      onapply={applyRewrite}
-      onrestore={(previous) => (text = previous)}
     />
     <p class="note"><a href="#about">Как считается оценка</a></p>
   </aside>

@@ -3,12 +3,16 @@
 import init, { analyze } from '../wasm/pkg/pr_wasm.js';
 import type { Clarity } from '../wasm/clarity-pkg/pr_wasm_clarity.js';
 
+// measure — та же оценка, что analyze, для другого текста (черновика LLM): у неё своя
+// очередь, поэтому она не вытесняет оценку поля ввода.
 export type Request =
   | { type: 'analyze'; id: number; text: string }
+  | { type: 'measure'; id: number; text: string }
   | { type: 'clarity'; id: number; text: string; dictionaryUrl: string };
 
 export type Response =
   | { type: 'analyze'; id: number; json: string }
+  | { type: 'measure'; id: number; json: string }
   | { type: 'clarity'; id: number; json: string }
   | { type: 'error'; id: number; message: string };
 
@@ -56,9 +60,9 @@ scope.onmessage = async (event) => {
   const request = event.data;
   // Ответ приходит на каждый запрос, даже неудачный: иначе страница ждала бы его вечно.
   try {
-    if (request.type === 'analyze') {
+    if (request.type === 'analyze' || request.type === 'measure') {
       await ready;
-      scope.postMessage({ type: 'analyze', id: request.id, json: analyze(request.text) });
+      scope.postMessage({ type: request.type, id: request.id, json: analyze(request.text) });
       return;
     }
     clarity ??= loadClarity(request.dictionaryUrl).catch((e) => {

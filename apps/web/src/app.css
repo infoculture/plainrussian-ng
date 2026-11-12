@@ -502,19 +502,73 @@ mark {
   color: var(--muted);
 }
 
-.llm {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+/* Действия LLM — сразу под полем ввода, результаты — карточками под ними. */
+.llm-bar {
+  margin-top: 4px;
 }
 
-.llm h2 {
+.llm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.llm-actions label {
+  flex: 1 1 200px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.llm-bar p {
+  margin: 8px 0 0;
+}
+
+.llm-card {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.llm-card h2 {
   margin-top: 0;
 }
 
-.llm h3 {
+.llm-card h3 {
   font-size: 15px;
   margin: 16px 0 8px;
+}
+
+.draft-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.draft-columns label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.draft-columns textarea {
+  display: block;
+  margin-top: 4px;
+  min-height: 220px;
+  font-size: 15px;
+  color: var(--text);
+}
+
+@media (max-width: 560px) {
+  .draft-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .draft-columns textarea {
+    min-height: 140px;
+  }
 }
 
 .page {
@@ -550,7 +604,8 @@ mark {
 
 .form input:not([type='checkbox']),
 .form select,
-.target select {
+.target select,
+.llm-actions select {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -590,16 +645,6 @@ mark {
 .privacy {
   font-size: 14px;
   color: var(--warning);
-}
-
-.rewrite .target {
-  margin: 0 0 8px;
-}
-
-textarea.draft {
-  min-height: 180px;
-  font-size: 15px;
-  background: var(--surface);
 }
 
 .privacy.local {

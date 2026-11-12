@@ -1,7 +1,7 @@
 import type { Analysis, ClarityReport } from './types';
 import type { Request, Response } from './worker';
 
-type Kind = 'analyze' | 'clarity';
+type Kind = 'analyze' | 'clarity' | 'measure';
 
 interface Job {
   request: Request;
@@ -14,13 +14,13 @@ export class Analyzer {
   private worker: Worker | null = null;
   private nextId = 0;
   // У оценки и у проверок свои последние запросы: они не вытесняют друг друга.
-  private lastId: Record<Kind, number> = { analyze: 0, clarity: 0 };
+  private lastId: Record<Kind, number> = { analyze: 0, clarity: 0, measure: 0 };
   private pending = new Map<number, { resolve: (value: unknown) => void; reject: (e: Error) => void }>();
   // В потоке не больше одного расчёта каждого вида. Пока он идёт, следующий запрос
   // ждёт здесь, а более новый вытесняет его: иначе при наборе длинного текста поток
   // считал бы подряд все промежуточные версии.
-  private busy: Record<Kind, boolean> = { analyze: false, clarity: false };
-  private queued: Record<Kind, Job | null> = { analyze: null, clarity: null };
+  private busy: Record<Kind, boolean> = { analyze: false, clarity: false, measure: false };
+  private queued: Record<Kind, Job | null> = { analyze: null, clarity: null, measure: null };
 
   private spawn(): Worker {
     const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
@@ -60,6 +60,14 @@ export class Analyzer {
   /** Возвращает null, если за время расчёта пришёл более новый текст. */
   analyze(text: string): Promise<Analysis | null> {
     return this.send({ type: 'analyze', id: 0, text }) as Promise<Analysis | null>;
+  }
+
+  /**
+   * Оценка другого текста, например черновика LLM. Своя очередь: не отменяет оценку
+   * поля ввода и не отменяется ею. null, если пришёл более новый текст.
+   */
+  measure(text: string): Promise<Analysis | null> {
+    return this.send({ type: 'measure', id: 0, text }) as Promise<Analysis | null>;
   }
 
   /**
