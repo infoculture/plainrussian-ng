@@ -42,7 +42,7 @@ enum Format {
 }
 
 const CSV_HEADER: &str = "path,average,grade,fk,cl,smog,dc,ari,sentences,words,syllables,\
-letters,complex_words,numbers,chars,calibration";
+letters,complex_words,numbers,chars,calibration,school,school_calibration";
 const CSV_CLARITY_HEADER: &str =
     ",genitive_chain,nominalization,bureaucratese,passive,abbreviation";
 
@@ -174,15 +174,16 @@ fn read_text(path: &Path) -> std::io::Result<String> {
 
 fn text_line(name: &str, m: &Measurement) -> String {
     let c = &m.counts;
-    match &m.indexes {
-        Some(ix) => format!(
-            "{name}: {} — {} (слов {}, предложений {})",
+    match (&m.indexes, &m.school) {
+        (Some(ix), Some(school)) => format!(
+            "{name}: {} — {} (слов {}, предложений {}); по школьной шкале — {}",
             years(ix.average.value),
             ix.average.grade,
             c.words,
-            c.sentences
+            c.sentences,
+            school.grade
         ),
-        None => format!("{name}: в тексте нет слов"),
+        _ => format!("{name}: в тексте нет слов"),
     }
 }
 
@@ -229,6 +230,8 @@ fn csv_line(name: &str, m: &Measurement) -> String {
         c.numbers.to_string(),
         c.chars.to_string(),
         m.calibration.version.to_string(),
+        number(m.school.as_ref().map(|s| s.value)),
+        m.school_calibration.version.to_string(),
     ]
     .join(",")
 }

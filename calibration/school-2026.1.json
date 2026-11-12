@@ -1,0 +1,583 @@
+{
+  "version": "school-2026.1",
+  "created": "2026-11-12",
+  "corpus": "graded",
+  "texts": 79,
+  "sources": 70,
+  "balanced": true,
+  "test_texts": 286,
+  "ceiling": 17,
+  "baseline": "2026.1",
+  "formulas": {
+    "fk": {
+      "title": "Flesch-Kincaid",
+      "features": [
+        "слов в предложении",
+        "слогов в слове"
+      ],
+      "coef": [
+        0.4253,
+        3.8332,
+        -8.4083
+      ],
+      "fit": {
+        "mae": 1.09,
+        "max": 6.593,
+        "within_2": 0.861
+      },
+      "loo": {
+        "mae": 1.131,
+        "max": 6.682,
+        "within_2": 0.848
+      },
+      "baseline": {
+        "mae": 5.407,
+        "max": 11.814,
+        "within_2": 0.177
+      },
+      "test": {
+        "mae": 3.791,
+        "max": 41.075,
+        "within_2": 0.36
+      },
+      "baseline_test": {
+        "mae": 4.116,
+        "max": 30.776,
+        "within_2": 0.318
+      }
+    },
+    "cl": {
+      "title": "Coleman-Liau",
+      "features": [
+        "букв на 100 слов",
+        "предложений на 100 слов"
+      ],
+      "coef": [
+        0.0135,
+        -0.6891,
+        4.4427
+      ],
+      "fit": {
+        "mae": 1.071,
+        "max": 6.658,
+        "within_2": 0.823
+      },
+      "loo": {
+        "mae": 1.102,
+        "max": 6.666,
+        "within_2": 0.823
+      },
+      "baseline": {
+        "mae": 4.607,
+        "max": 9.397,
+        "within_2": 0.165
+      },
+      "test": {
+        "mae": 3.4,
+        "max": 14.472,
+        "within_2": 0.385
+      },
+      "baseline_test": {
+        "mae": 3.815,
+        "max": 14.847,
+        "within_2": 0.339
+      }
+    },
+    "smog": {
+      "title": "SMOG",
+      "features": [
+        "√(сложных слов на 30 предложений)"
+      ],
+      "coef": [
+        0.981,
+        0.829
+      ],
+      "fit": {
+        "mae": 1.251,
+        "max": 5.984,
+        "within_2": 0.823
+      },
+      "loo": {
+        "mae": 1.28,
+        "max": 5.984,
+        "within_2": 0.823
+      },
+      "baseline": {
+        "mae": 4.984,
+        "max": 16.048,
+        "within_2": 0.127
+      },
+      "test": {
+        "mae": 3.547,
+        "max": 10.442,
+        "within_2": 0.336
+      },
+      "baseline_test": {
+        "mae": 3.444,
+        "max": 27.205,
+        "within_2": 0.367
+      }
+    },
+    "dc": {
+      "title": "Dale-Chall (упрощённая)",
+      "features": [
+        "сложных слов на 100 слов",
+        "слов в предложении"
+      ],
+      "coef": [
+        0.1925,
+        0.4778,
+        -1.533
+      ],
+      "fit": {
+        "mae": 1.15,
+        "max": 8.353,
+        "within_2": 0.861
+      },
+      "loo": {
+        "mae": 1.217,
+        "max": 8.412,
+        "within_2": 0.848
+      },
+      "baseline": {
+        "mae": 7.02,
+        "max": 18.629,
+        "within_2": 0.139
+      },
+      "test": {
+        "mae": 3.918,
+        "max": 45.043,
+        "within_2": 0.357
+      },
+      "baseline_test": {
+        "mae": 3.695,
+        "max": 22.5,
+        "within_2": 0.339
+      }
+    },
+    "ari": {
+      "title": "ARI",
+      "features": [
+        "букв в слове",
+        "слов в предложении"
+      ],
+      "coef": [
+        1.537,
+        0.4622,
+        -8.3848
+      ],
+      "fit": {
+        "mae": 1.1,
+        "max": 6.962,
+        "within_2": 0.835
+      },
+      "loo": {
+        "mae": 1.118,
+        "max": 6.98,
+        "within_2": 0.835
+      },
+      "baseline": {
+        "mae": 4.48,
+        "max": 9.375,
+        "within_2": 0.177
+      },
+      "test": {
+        "mae": 3.858,
+        "max": 44.262,
+        "within_2": 0.357
+      },
+      "baseline_test": {
+        "mae": 3.95,
+        "max": 29.989,
+        "within_2": 0.325
+      }
+    }
+  },
+  "average": {
+    "title": "Среднее пяти формул",
+    "fit": {
+      "mae": 1.09,
+      "max": 6.492,
+      "within_2": 0.848
+    },
+    "loo": {
+      "mae": 1.124,
+      "max": 6.499,
+      "within_2": 0.848
+    },
+    "baseline": {
+      "mae": 5.262,
+      "max": 11.294,
+      "within_2": 0.165
+    },
+    "test": {
+      "mae": 3.621,
+      "max": 28.866,
+      "within_2": 0.353
+    },
+    "baseline_test": {
+      "mae": 3.737,
+      "max": 23.786,
+      "within_2": 0.35
+    }
+  },
+  "levels": [
+    {
+      "key": 2,
+      "sources": 2,
+      "texts": 2,
+      "loo": {
+        "mae": 1.166,
+        "bias": 1.166
+      },
+      "baseline": {
+        "mae": 0.152,
+        "bias": 0.152
+      }
+    },
+    {
+      "key": 3,
+      "sources": 1,
+      "texts": 1,
+      "loo": {
+        "mae": 0.668,
+        "bias": 0.668
+      },
+      "baseline": {
+        "mae": 0.94,
+        "bias": -0.94
+      }
+    },
+    {
+      "key": 4,
+      "sources": 2,
+      "texts": 2,
+      "loo": {
+        "mae": 0.778,
+        "bias": 0.105
+      },
+      "baseline": {
+        "mae": 1.381,
+        "bias": 0.258
+      }
+    },
+    {
+      "key": 5,
+      "sources": 4,
+      "texts": 4,
+      "loo": {
+        "mae": 1.61,
+        "bias": -0.241
+      },
+      "baseline": {
+        "mae": 3.167,
+        "bias": 1.961
+      }
+    },
+    {
+      "key": 6,
+      "sources": 5,
+      "texts": 6,
+      "loo": {
+        "mae": 1.486,
+        "bias": -0.471
+      },
+      "baseline": {
+        "mae": 4.284,
+        "bias": 2.571
+      }
+    },
+    {
+      "key": 7,
+      "sources": 16,
+      "texts": 17,
+      "loo": {
+        "mae": 0.758,
+        "bias": 0.649
+      },
+      "baseline": {
+        "mae": 5.872,
+        "bias": 5.872
+      }
+    },
+    {
+      "key": 8,
+      "sources": 17,
+      "texts": 21,
+      "loo": {
+        "mae": 0.839,
+        "bias": 0.121
+      },
+      "baseline": {
+        "mae": 5.871,
+        "bias": 5.665
+      }
+    },
+    {
+      "key": 9,
+      "sources": 17,
+      "texts": 18,
+      "loo": {
+        "mae": 0.802,
+        "bias": -0.336
+      },
+      "baseline": {
+        "mae": 6.808,
+        "bias": 6.772
+      }
+    },
+    {
+      "key": 10,
+      "sources": 4,
+      "texts": 6,
+      "loo": {
+        "mae": 3.276,
+        "bias": -3.276
+      },
+      "baseline": {
+        "mae": 3.299,
+        "bias": -0.918
+      }
+    },
+    {
+      "key": 11,
+      "sources": 2,
+      "texts": 2,
+      "loo": {
+        "mae": 2.125,
+        "bias": -2.125
+      },
+      "baseline": {
+        "mae": 3.954,
+        "bias": 3.954
+      }
+    }
+  ],
+  "source_types": [
+    {
+      "key": "exam",
+      "sources": 70,
+      "texts": 79,
+      "loo": {
+        "mae": 1.124,
+        "bias": -0.214
+      },
+      "baseline": {
+        "mae": 5.262,
+        "bias": 4.636
+      }
+    }
+  ],
+  "genres": [
+    {
+      "key": "educational",
+      "sources": 41,
+      "texts": 46,
+      "loo": {
+        "mae": 0.741,
+        "bias": 0.385
+      },
+      "baseline": {
+        "mae": 6.927,
+        "bias": 6.927
+      }
+    },
+    {
+      "key": "fiction",
+      "sources": 15,
+      "texts": 18,
+      "loo": {
+        "mae": 2.212,
+        "bias": -1.78
+      },
+      "baseline": {
+        "mae": 1.802,
+        "bias": -0.947
+      }
+    },
+    {
+      "key": "popular",
+      "sources": 14,
+      "texts": 15,
+      "loo": {
+        "mae": 0.991,
+        "bias": -0.175
+      },
+      "baseline": {
+        "mae": 4.309,
+        "bias": 4.309
+      }
+    }
+  ],
+  "test_groups": [
+    {
+      "key": "exam, 11 кл.",
+      "sources": 17,
+      "texts": 17,
+      "loo": {
+        "mae": 2.928,
+        "bias": -2.021
+      },
+      "baseline": {
+        "mae": 3.818,
+        "bias": 1.415
+      }
+    },
+    {
+      "key": "exam, 9 кл.",
+      "sources": 17,
+      "texts": 17,
+      "loo": {
+        "mae": 4.298,
+        "bias": 0.36
+      },
+      "baseline": {
+        "mae": 6.34,
+        "bias": 3.352
+      }
+    },
+    {
+      "key": "fiction, 1 кл.",
+      "sources": 2,
+      "texts": 2,
+      "loo": {
+        "mae": 2.569,
+        "bias": 2.569
+      },
+      "baseline": {
+        "mae": 1.47,
+        "bias": 0.082
+      }
+    },
+    {
+      "key": "fiction, 10 кл.",
+      "sources": 6,
+      "texts": 27,
+      "loo": {
+        "mae": 3.226,
+        "bias": -3.182
+      },
+      "baseline": {
+        "mae": 4.388,
+        "bias": -4.249
+      }
+    },
+    {
+      "key": "fiction, 11 кл.",
+      "sources": 17,
+      "texts": 83,
+      "loo": {
+        "mae": 6.244,
+        "bias": -5.485
+      },
+      "baseline": {
+        "mae": 5.399,
+        "bias": -4.893
+      }
+    },
+    {
+      "key": "fiction, 2 кл.",
+      "sources": 3,
+      "texts": 3,
+      "loo": {
+        "mae": 1.928,
+        "bias": 1.928
+      },
+      "baseline": {
+        "mae": 1.307,
+        "bias": 0.849
+      }
+    },
+    {
+      "key": "fiction, 3 кл.",
+      "sources": 2,
+      "texts": 3,
+      "loo": {
+        "mae": 0.671,
+        "bias": 0.671
+      },
+      "baseline": {
+        "mae": 0.604,
+        "bias": 0.099
+      }
+    },
+    {
+      "key": "fiction, 4 кл.",
+      "sources": 3,
+      "texts": 15,
+      "loo": {
+        "mae": 3.943,
+        "bias": 3.766
+      },
+      "baseline": {
+        "mae": 2.803,
+        "bias": 2.64
+      }
+    },
+    {
+      "key": "fiction, 5 кл.",
+      "sources": 8,
+      "texts": 36,
+      "loo": {
+        "mae": 0.851,
+        "bias": -0.102
+      },
+      "baseline": {
+        "mae": 1.402,
+        "bias": -0.296
+      }
+    },
+    {
+      "key": "fiction, 6 кл.",
+      "sources": 6,
+      "texts": 25,
+      "loo": {
+        "mae": 1.371,
+        "bias": -0.496
+      },
+      "baseline": {
+        "mae": 2.443,
+        "bias": -0.091
+      }
+    },
+    {
+      "key": "fiction, 7 кл.",
+      "sources": 11,
+      "texts": 48,
+      "loo": {
+        "mae": 3.042,
+        "bias": -1.67
+      },
+      "baseline": {
+        "mae": 2.813,
+        "bias": -1.393
+      }
+    },
+    {
+      "key": "fiction, 8 кл.",
+      "sources": 1,
+      "texts": 5,
+      "loo": {
+        "mae": 2.21,
+        "bias": -2.21
+      },
+      "baseline": {
+        "mae": 2.995,
+        "bias": -2.995
+      }
+    },
+    {
+      "key": "fiction, 9 кл.",
+      "sources": 1,
+      "texts": 5,
+      "loo": {
+        "mae": 2.698,
+        "bias": -2.698
+      },
+      "baseline": {
+        "mae": 3.432,
+        "bias": -3.432
+      }
+    }
+  ]
+}

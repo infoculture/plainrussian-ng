@@ -39,6 +39,8 @@ def measure_readability(text: str) -> dict[str, Any]:
 
     Возвращает главную оценку (среднее пяти формул), уровень словами, оценки каждой
     формулы, счётчики (слова, предложения, слоги, сложные слова) и средние показатели.
+    school_grade — оценка по школьной шкале, класс от 1 до 11: она верна для учебных и
+    научно-популярных текстов для школьников, а главная оценка их завышает.
     Оценка надёжна для текстов от двух предложений и десяти слов.
     """
     m = plainrussian.measure(text)
@@ -59,6 +61,10 @@ def measure_readability(text: str) -> dict[str, Any]:
     if raw < 1 or raw >= 17:
         result["note"] = "Оценка за пределами шкалы 1–17 лет: текст проще младшей школы или сложнее вуза."
     result["level"] = indexes["average"]["grade"]
+    school = m["school"]
+    result["school_grade"] = round(min(max(school["value"], 1.0), 11.0), 1)
+    result["school_level"] = school["grade"]
+    result["school_calibration"] = m["school_calibration"]["version"]
     result["formulas"] = {
         name: round(indexes[key]["value"], 2)
         for name, key in [

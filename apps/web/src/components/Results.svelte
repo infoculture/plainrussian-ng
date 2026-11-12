@@ -30,6 +30,8 @@
   let f = $derived(measurement.features);
   let ix = $derived(measurement.indexes);
   let calibration = $derived(measurement.calibration);
+  let school = $derived(measurement.school);
+  let schoolCalibration = $derived(measurement.school_calibration);
   let tooShort = $derived(c.sentences < 2 || c.words < 10);
 
   // Корпус размечен от 1 до 17 («17 и выше»), за этими границами формулы экстраполируют.
@@ -95,6 +97,16 @@
     оценка ошибается в среднем на {fmt(calibration.average_error, 1)} года.
   </p>
 
+  {#if school}
+    <p class="school">По школьной шкале — <strong>{school.grade}</strong>.</p>
+    <p class="note">
+      Школьная шкала — для текстов, написанных для школьников: учебных и научно-популярных. Она
+      подобрана на текстах проверочных работ ФИПИ для 2–11 классов и ошибается на них в среднем на
+      {fmt(schoolCalibration.average_error, 1)} класса. Художественные тексты она занижает, а тексты сложнее
+      школьных не различает: для них верна главная оценка.
+    </p>
+  {/if}
+
   {#if tooShort}
     <p class="warning">Текст слишком короткий: оценка надёжна от 2 предложений и 10 слов.</p>
   {/if}
@@ -124,7 +136,7 @@
     <div><dt>Чисел</dt><dd>{fmt(c.numbers)}</dd></div>
     <div><dt>Знаков</dt><dd>{fmt(c.chars)}</dd></div>
   </dl>
-  <p class="note">Калибровка {calibration.version}.</p>
+  <p class="note">Калибровка {calibration.version}, школьная шкала {schoolCalibration.version}.</p>
 {:else}
   <p class="warning">В тексте нет слов, оценивать нечего.</p>
 {/if}

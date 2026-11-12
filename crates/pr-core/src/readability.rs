@@ -11,6 +11,12 @@
 //! Формулы те же пять, но коэффициенты подобраны заново под этот подсчёт.
 //! Они берутся из файла калибровки `calibration/<версия>.json`; версия
 //! возвращается в каждом результате.
+//!
+//! Школьная шкала — те же формулы с коэффициентами, подобранными на текстах
+//! проверочных работ ФИПИ для 2–11 классов (`calibration/school-2026.1.md`).
+//! Она отвечает, в каком классе текст по силам школьнику. Главная шкала на этих
+//! текстах завышает учебные и научно-популярные тексты на годы, а школьная не
+//! годится для текстов сложнее школьных: законы на ней остаются в старших классах.
 
 use std::collections::BTreeMap;
 
@@ -50,6 +56,21 @@ pub const CALIBRATION: Calibration = Calibration {
     dc: [1.0964, 0.1884, -1.3481],
     ari: [6.4631, 0.2559, -31.2201],
 };
+
+/// Школьная шкала; значения совпадают с `calibration/school-2026.1.json`,
+/// это проверяет тест `school_calibration_matches_json`.
+pub const SCHOOL_CALIBRATION: Calibration = Calibration {
+    version: "school-2026.1",
+    average_error: 1.124,
+    fk: [0.4253, 3.8332, -8.4083],
+    cl: [0.0135, -0.6891, 4.4427],
+    smog: [0.981, 0.829],
+    dc: [0.1925, 0.4778, -1.533],
+    ari: [1.537, 0.4622, -8.3848],
+};
+
+/// Классы, на которых подобрана школьная шкала: оценка показывается в этих пределах.
+pub const SCHOOL_GRADES: (f64, f64) = (1.0, 11.0);
 
 /// Счётчики текста.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
@@ -107,6 +128,11 @@ pub struct Measurement {
     /// Нет, если в тексте нет ни одного слова.
     pub features: Option<Features>,
     pub indexes: Option<Indexes>,
+    /// Коэффициенты школьной шкалы.
+    pub school_calibration: Calibration,
+    /// Школьная шкала: `value` — класс (среднее пяти формул), `grade` — подпись.
+    /// Нет, если в тексте нет ни одного слова.
+    pub school: Option<Index>,
 }
 
 /// Слово для подсветки. Смещения — в единицах UTF-16, как у строк JavaScript.
@@ -177,6 +203,7 @@ pub fn analyze(text: &str) -> Analysis {
 
     let features = features(&counts);
     let indexes = features.map(|f| indexes(&f, &CALIBRATION));
+    let school = features.map(|f| school(&f));
 
     let utf16 = Utf16Offsets::new(&chars);
     let annotation = Annotation {
@@ -204,6 +231,8 @@ pub fn analyze(text: &str) -> Analysis {
             counts,
             features,
             indexes,
+            school_calibration: SCHOOL_CALIBRATION,
+            school,
         },
         annotation,
     }
@@ -243,6 +272,27 @@ pub fn indexes(f: &Features, k: &Calibration) -> Indexes {
         smog: index(smog),
         dc: index(dc),
         ari: index(ari),
+    }
+}
+
+/// Оценка по школьной шкале: среднее пяти формул с коэффициентами [`SCHOOL_CALIBRATION`].
+pub fn school(f: &Features) -> Index {
+    let value = indexes(f, &SCHOOL_CALIBRATION).average.value;
+    Index {
+        value,
+        grade: school_label(value),
+    }
+}
+
+/// Подпись школьной оценки: класс в пределах [`SCHOOL_GRADES`].
+pub fn school_label(value: f64) -> String {
+    let (min, max) = SCHOOL_GRADES;
+    if value.is_nan() || value.round() <= min {
+        "1-й класс".to_string()
+    } else if value.round() > max {
+        "сложнее текстов для 11-го класса".to_string()
+    } else {
+        format!("{}-й класс", value.round())
     }
 }
 
@@ -480,6 +530,66 @@ mod tests {
         assert_eq!(coef("smog"), CALIBRATION.smog);
         assert_eq!(coef("dc"), CALIBRATION.dc);
         assert_eq!(coef("ari"), CALIBRATION.ari);
+    }
+
+    #[test]
+    fn school_calibration_matches_json() {
+        let json: serde_json::Value =
+            serde_json::from_str(include_str!("../../../calibration/school-2026.1.json")).unwrap();
+        assert_eq!(json["version"], SCHOOL_CALIBRATION.version);
+        assert_eq!(json["balanced"], true);
+        assert_eq!(
+            json["average"]["loo"]["mae"],
+            SCHOOL_CALIBRATION.average_error
+        );
+        let coef = |key: &str| -> Vec<f64> {
+            json["formulas"][key]["coef"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_f64().unwrap())
+                .collect()
+        };
+        assert_eq!(coef("fk"), SCHOOL_CALIBRATION.fk);
+        assert_eq!(coef("cl"), SCHOOL_CALIBRATION.cl);
+        assert_eq!(coef("smog"), SCHOOL_CALIBRATION.smog);
+        assert_eq!(coef("dc"), SCHOOL_CALIBRATION.dc);
+        assert_eq!(coef("ari"), SCHOOL_CALIBRATION.ari);
+    }
+
+    #[test]
+    fn school_scale_is_the_average_of_school_formulas() {
+        let m = measure("Мама мыла раму. Папа читал газету, а кот спал на тёплой печке.");
+        let f = m.features.unwrap();
+        let school = m.school.unwrap();
+        assert_eq!(school.value, indexes(&f, &SCHOOL_CALIBRATION).average.value);
+        assert_eq!(school.grade, school_label(school.value));
+        assert_eq!(m.school_calibration, SCHOOL_CALIBRATION);
+        assert!(measure("  123 ... ").school.is_none());
+    }
+
+    /// Школьная шкала ниже главной на учебных текстах: для этого она и подобрана.
+    #[test]
+    fn school_scale_is_lower_on_textbook_prose() {
+        let text = "Фотосинтез — процесс образования органических веществ из углекислого газа \
+            и воды на свету при участии хлорофилла. В результате фотосинтеза выделяется кислород. \
+            Растения используют энергию солнечного света, поглощённую хлорофиллом, для синтеза \
+            глюкозы, которая служит источником энергии и строительным материалом клетки.";
+        let m = measure(text);
+        let main = m.indexes.unwrap().average.value;
+        let school = m.school.unwrap().value;
+        assert!(school < main - 3.0, "школьная {school}, главная {main}");
+        assert!((5.0..=11.0).contains(&school), "школьная {school}");
+    }
+
+    #[test]
+    fn school_label_names_a_grade() {
+        assert_eq!(school_label(-2.0), "1-й класс");
+        assert_eq!(school_label(f64::NAN), "1-й класс");
+        assert_eq!(school_label(1.4), "1-й класс");
+        assert_eq!(school_label(6.6), "7-й класс");
+        assert_eq!(school_label(11.4), "11-й класс");
+        assert_eq!(school_label(11.5), "сложнее текстов для 11-го класса");
     }
 
     #[test]
