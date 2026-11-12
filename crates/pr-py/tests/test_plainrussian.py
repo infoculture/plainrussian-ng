@@ -57,6 +57,8 @@ def test_check_clarity():
     assert r["counts"]["abbreviation"] == 1
     for f in r["findings"]:
         assert text[f["start"]:f["end"]] == f["text"]
+    assert r["findings"][0]["suggestion"] == "чтобы"
+    assert all(("suggestion" in f) == (f["kind"] == "bureaucratese") for f in r["findings"])
 
 
 def test_check_clarity_offsets_with_emoji():

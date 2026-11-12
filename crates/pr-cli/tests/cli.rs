@@ -131,7 +131,7 @@ fn clarity_in_text_json_and_csv() {
     let out = run(&["--clarity", "-"], Some(bureaucratic.as_bytes()));
     let stdout = String::from_utf8(out.stdout).unwrap();
     assert!(
-        stdout.contains("ясный язык: цепочки родительных 1, отглагольные 2, канцеляризмы 3"),
+        stdout.contains("ясный язык: цепочки родительных 1, отглагольные 2, канцеляризмы 4"),
         "{stdout}"
     );
 
@@ -142,6 +142,7 @@ fn clarity_in_text_json_and_csv() {
     let line: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(line["clarity"]["counts"]["genitive_chain"], 1);
     assert_eq!(line["clarity"]["findings"][0]["text"], "В целях");
+    assert_eq!(line["clarity"]["findings"][0]["suggestion"], "чтобы");
 
     let out = run(
         &["--clarity", "--format", "csv", "-"],
@@ -152,5 +153,5 @@ fn clarity_in_text_json_and_csv() {
     assert!(
         lines[0].ends_with(",genitive_chain,nominalization,bureaucratese,passive,abbreviation")
     );
-    assert!(lines[1].ends_with(",1,2,3,0,0"), "{}", lines[1]);
+    assert!(lines[1].ends_with(",1,2,4,0,0"), "{}", lines[1]);
 }

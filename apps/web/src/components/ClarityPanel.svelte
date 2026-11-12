@@ -38,14 +38,19 @@
     onselect(found[index].start, found[index].end);
   }
 
-  /** Неповторяющиеся примеры в порядке появления. */
+  /**
+   * Неповторяющиеся примеры в порядке появления, с заменой, если она есть.
+   * «В целях» и «в целях» — один пример: замена у них одна.
+   */
   function examples(kind: string, limit = 4): string[] {
-    const seen = new Set<string>();
+    const seen = new Map<string, string>();
     for (const f of report?.findings ?? []) {
-      if (f.kind === kind) seen.add(f.text);
+      if (f.kind !== kind) continue;
+      const key = f.text.replace(/\s+/g, ' ').toLowerCase();
+      if (!seen.has(key)) seen.set(key, f.suggestion ? `«${f.text}» → ${f.suggestion}` : `«${f.text}»`);
       if (seen.size >= limit) break;
     }
-    return [...seen];
+    return [...seen.values()];
   }
 
   let total = $derived(report ? report.findings.length : 0);
@@ -83,7 +88,14 @@
                 <span>{k.label}</span>
                 <span class="num">{report.counts[k.kind]}</span>
               </button>
-              <p class="note">{examples(k.kind).map((e) => `«${e}»`).join(', ')}</p>
+              {#if k.kind === 'bureaucratese'}
+                <!-- У канцеляризмов своя замена: по примеру на строку, иначе их не прочесть. -->
+                <ul class="note replacements">
+                  {#each examples(k.kind) as e (e)}<li>{e}</li>{/each}
+                </ul>
+              {:else}
+                <p class="note">{examples(k.kind).join(', ')}</p>
+              {/if}
               <p class="note advice">{k.advice}</p>
             </li>
           {/if}

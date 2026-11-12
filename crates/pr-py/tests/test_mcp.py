@@ -69,6 +69,8 @@ async def test_check_plain_language():
     assert kinds["genitive_chain"]["count"] >= 1
     assert "эффективности деятельности органов исполнительной власти" in kinds["genitive_chain"]["examples"][1]
     assert kinds["bureaucratese"]["examples"][0] == "В целях"
+    assert kinds["bureaucratese"]["replacements"][0] == {"text": "В целях", "suggestion": "чтобы"}
+    assert "replacements" not in kinds["genitive_chain"]
     assert data["per_100_words"] > 10
 
 
