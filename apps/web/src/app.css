@@ -669,6 +669,17 @@ blockquote {
   margin-bottom: 12px;
 }
 
+.clarity-list .replacements {
+  margin: 2px 0 0 22px;
+  padding: 0;
+  list-style: none;
+}
+
+/* Отступ между видами находок (.clarity-list li) строкам замен не нужен. */
+.clarity-list .replacements li {
+  margin: 0;
+}
+
 .clarity-list p {
   margin: 2px 0 0 22px;
 }

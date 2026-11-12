@@ -114,7 +114,7 @@ CLARITY_KINDS = {
     ),
     "bureaucratese": (
         "Канцеляризмы",
-        "Сказать проще: «в целях» → «чтобы», «осуществлять» → «делать», «является» → «это».",
+        "Сказать проще: замена для каждого примера — в replacements.",
     ),
     "passive": (
         "Страдательный залог",
@@ -130,7 +130,8 @@ def check_plain_language(text: str, max_examples: int = 5) -> dict[str, Any]:
 
     Ищет цепочки из трёх и больше существительных в родительном падеже, отглагольные
     существительные, канцеляризмы («в целях», «осуществлять»), страдательные причастия
-    и аббревиатуры. Для каждого вида — число находок, примеры из текста и совет.
+    и аббревиатуры. Для каждого вида — число находок, примеры из текста и совет;
+    у канцеляризмов ещё replacements — чем заменить каждый пример.
     max_examples — сколько примеров вернуть для каждого вида (по умолчанию 5).
     """
     report = plainrussian.check_clarity(text)
@@ -139,8 +140,13 @@ def check_plain_language(text: str, max_examples: int = 5) -> dict[str, Any]:
         count = report["counts"][kind]
         if not count:
             continue
-        examples = list(dict.fromkeys(f["text"] for f in report["findings"] if f["kind"] == kind))
-        kinds.append({"kind": kind, "label": label, "count": count, "examples": examples[:max_examples], "advice": advice})
+        found = [f for f in report["findings"] if f["kind"] == kind]
+        examples = list(dict.fromkeys(f["text"] for f in found))[:max_examples]
+        entry = {"kind": kind, "label": label, "count": count, "examples": examples, "advice": advice}
+        replacements = {f["text"]: f["suggestion"] for f in found if f.get("suggestion") and f["text"] in examples}
+        if replacements:
+            entry["replacements"] = [{"text": t, "suggestion": s} for t, s in replacements.items()]
+        kinds.append(entry)
     return {
         "words": report["words"],
         "total": len(report["findings"]),

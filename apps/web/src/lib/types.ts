@@ -85,6 +85,8 @@ export interface Finding {
   start: number;
   end: number;
   text: string;
+  /** Чем заменить: есть у канцеляризмов из словаря ядра. */
+  suggestion?: string;
 }
 
 export interface ClarityReport {

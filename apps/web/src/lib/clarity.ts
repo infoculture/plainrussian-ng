@@ -16,7 +16,7 @@ export const CLARITY_KINDS: { kind: ClarityKind; label: string; advice: string }
   {
     kind: 'bureaucratese',
     label: 'Канцеляризмы',
-    advice: 'Скажите проще: «в целях» → «чтобы», «осуществлять» → «делать», «является» → «это».',
+    advice: 'Скажите проще: замены — рядом с примерами.',
   },
   {
     kind: 'passive',
@@ -44,7 +44,9 @@ export function clarityMarks(report: ClarityReport): Mark[] {
   let end = 0;
   for (const f of sorted) {
     if (f.start < end) continue;
-    marks.push({ start: f.start, end: f.end, cls: `clarity-${f.kind}`, title: clarityLabel(f.kind) });
+    const label = clarityLabel(f.kind);
+    const title = f.suggestion ? `${label}. Проще: ${f.suggestion}` : label;
+    marks.push({ start: f.start, end: f.end, cls: `clarity-${f.kind}`, title });
     end = f.end;
   }
   return marks;
