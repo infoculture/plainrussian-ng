@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { Analyzer } from '../lib/analyzer';
   // В имени файла сборки — хеш содержимого: новый словарь не застрянет в кеше.
   import dictionaryAsset from '../wasm/clarity-pkg/ru.dict.gz?url';
@@ -14,6 +14,7 @@
   import Highlighted from './Highlighted.svelte';
   import LlmPanel from './LlmPanel.svelte';
   import Results from './Results.svelte';
+  import RewritePanel from './RewritePanel.svelte';
 
   const analyzer = new Analyzer();
 
@@ -67,6 +68,27 @@
     // правили, а новая разметка ещё считается, они указывают не туда.
     if (analysis?.text !== text) return;
     selectRange(textarea, start, end);
+    trackSelection();
+  }
+
+  // Выделение в поле: его можно переписать с помощью LLM. Вместе с ним хранится текст,
+  // в котором выделяли: после замены текста целиком прежние смещения не годятся.
+  let selection = $state({ text: '', start: 0, end: 0 });
+
+  function trackSelection() {
+    selection = { text: textarea.value, start: textarea.selectionStart, end: textarea.selectionEnd };
+  }
+
+  /** Переписанный текст. Прежний вариант становится исходным для «Было и стало». */
+  async function applyRewrite(next: string, range: { start: number; end: number } | null) {
+    if (analysis?.text === text) remember();
+    text = next;
+    // Переписанный фрагмент выделяется, чтобы было видно, что изменилось.
+    if (range) {
+      await tick();
+      selectRange(textarea, range.start, range.end);
+      trackSelection();
+    }
   }
 
   // Проверки ясного языка: словарь загружается при включении и затем лежит в кеше.
@@ -242,7 +264,11 @@
         // Вставленный целиком текст — новый исходный вариант, как открытый файл.
         if (pasteAll && e instanceof InputEvent && e.inputType === 'insertFromPaste') pin = true;
         pasteAll = false;
+        trackSelection();
       }}
+      onselect={trackSelection}
+      onkeyup={trackSelection}
+      onmouseup={trackSelection}
       placeholder="Вставьте текст или перетащите сюда файл: txt, html, docx, pdf"
       spellcheck="false"
     ></textarea>
@@ -292,6 +318,14 @@
       onselect={select}
     />
     <LlmPanel {text} {formula} />
+    <RewritePanel
+      {text}
+      {analysis}
+      {clarity}
+      {selection}
+      onapply={applyRewrite}
+      onrestore={(previous) => (text = previous)}
+    />
     <p class="note"><a href="#about">Как считается оценка</a></p>
   </aside>
 </div>

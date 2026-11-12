@@ -1,9 +1,11 @@
-// Оценка через OpenAI-совместимый API: OpenAI, OpenRouter, GigaChat, Ollama, LM Studio и другие.
+// Оценка и переписывание через OpenAI-совместимый API: OpenAI, OpenRouter, GigaChat,
+// Ollama, LM Studio и другие.
 import { z } from 'zod';
 import { invoke, isDesktop } from '../platform.ts';
 import { SYSTEM_PROMPT, userMessage } from './assessment.ts';
 import { Assessment } from './schema.ts';
 import { LlmError, provider, runsLocally, type ProviderId, type Request } from './providers.ts';
+import type { Prompt } from './rewrite.ts';
 
 const SCHEMA = (() => {
   const { $schema: _, ...schema } = z.toJSONSchema(Assessment);
@@ -89,6 +91,18 @@ const Completion = z.object({
     .min(1),
 });
 
+/** Запрос к /chat/completions; возвращает текст ответа модели. */
+async function complete(body: Record<string, unknown>, req: Request, signal?: AbortSignal): Promise<string> {
+  const data = await call('/chat/completions', req, JSON.stringify(body), signal);
+  const completion = Completion.safeParse(data);
+  if (!completion.success) throw new LlmError('Сервер вернул неожиданный ответ.');
+  const choice = completion.data.choices[0];
+  if (choice.finish_reason === 'length') {
+    throw new LlmError('Ответ модели оборвался: текст слишком длинный для этой модели.');
+  }
+  return choice.message.content ?? '';
+}
+
 export async function assessWithOpenAI(text: string, req: Request, signal?: AbortSignal): Promise<Assessment> {
   const body = {
     model: req.model,
@@ -102,14 +116,19 @@ export async function assessWithOpenAI(text: string, req: Request, signal?: Abor
         ? { type: 'json_schema', schema: SCHEMA, strict: true }
         : { type: 'json_schema', json_schema: { name: 'assessment', strict: true, schema: SCHEMA } },
   };
-  const data = await call('/chat/completions', req, JSON.stringify(body), signal);
-  const completion = Completion.safeParse(data);
-  if (!completion.success) throw new LlmError('Сервер вернул неожиданный ответ.');
-  const choice = completion.data.choices[0];
-  if (choice.finish_reason === 'length') {
-    throw new LlmError('Ответ модели оборвался: текст слишком длинный для этой модели.');
-  }
-  return parseAssessment(choice.message.content ?? '');
+  return parseAssessment(await complete(body, req, signal));
+}
+
+/** Переписывание: ответ обычным текстом, без схемы — её понимают не все локальные модели. */
+export async function rewriteWithOpenAI(prompt: Prompt, req: Request, signal?: AbortSignal): Promise<string> {
+  const body = {
+    model: req.model,
+    messages: [
+      { role: 'system', content: prompt.system },
+      { role: 'user', content: prompt.user },
+    ],
+  };
+  return complete(body, req, signal);
 }
 
 /** Модели без строгого режима иногда оборачивают JSON в ```json … ```. */

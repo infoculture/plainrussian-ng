@@ -592,6 +592,16 @@ mark {
   color: var(--warning);
 }
 
+.rewrite .target {
+  margin: 0 0 8px;
+}
+
+textarea.draft {
+  min-height: 180px;
+  font-size: 15px;
+  background: var(--surface);
+}
+
 .privacy.local {
   color: var(--muted);
 }
