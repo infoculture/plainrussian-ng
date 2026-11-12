@@ -351,6 +351,11 @@ textarea {
   color: var(--error);
 }
 
+/* «Оценка не изменилась» в сравнении «было и стало»: не успех и не ошибка. */
+.verdict.same {
+  color: var(--muted);
+}
+
 h2 {
   font-size: 17px;
   margin: 20px 0 8px;
@@ -387,6 +392,12 @@ th {
   gap: 8px 16px;
   margin: 0;
   font-size: 14px;
+}
+
+/* Сравнение «было и стало»: по строке на показатель, значения не помещаются в полстроки. */
+.metrics.wide {
+  grid-template-columns: minmax(0, 1fr);
+  margin-bottom: 8px;
 }
 
 .metrics div {

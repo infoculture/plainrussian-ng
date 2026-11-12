@@ -6,6 +6,16 @@ import { plural } from './segments.ts';
 export const SCALE_MIN = 1;
 export const SCALE_MAX = 17;
 
+/**
+ * Оценка в пределах шкалы: «<1», «17+» или число. За границами шкалы формулы
+ * экстраполируют, и «52,9 лет обучения» рядом с итогом «17+» только сбивает с толку.
+ */
+export function onScale(value: number, digits: number): string {
+  if (value < SCALE_MIN) return `<${SCALE_MIN}`;
+  if (value >= SCALE_MAX) return `${SCALE_MAX}+`;
+  return value.toLocaleString('ru-RU', { maximumFractionDigits: digits });
+}
+
 export interface Audience {
   id: string;
   title: string;

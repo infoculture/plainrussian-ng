@@ -1,12 +1,14 @@
 <script lang="ts">
   import type { Measurement, SentenceSpan } from '../lib/types';
   import { plural } from '../lib/segments';
+  import Compare from './Compare.svelte';
   import LongSentences from './LongSentences.svelte';
   import {
     AUDIENCES,
     SCALE_MAX as MAX,
     SCALE_MIN as MIN,
     audience,
+    onScale,
     setAudience,
     verdict,
   } from '../lib/target.svelte.ts';
@@ -16,12 +18,20 @@
     text,
     sentences,
     onselect,
+    baseline,
+    edited,
+    onremember,
   }: {
     measurement: Measurement;
     /** Текст и его предложения — для списка самых длинных. */
     text: string;
     sentences: SentenceSpan[];
     onselect: (start: number, end: number) => void;
+    /** Показатели исходного варианта для сравнения «было и стало»; null, если его нет. */
+    baseline: Measurement | null;
+    /** Текст правили после того, как запомнили исходный вариант. */
+    edited: boolean;
+    onremember: () => void;
   } = $props();
 
   const fmt = (n: number, digits = 2) => n.toLocaleString('ru-RU', { maximumFractionDigits: digits });
@@ -35,10 +45,7 @@
   let tooShort = $derived(c.sentences < 2 || c.words < 10);
 
   // Корпус размечен от 1 до 17 («17 и выше»), за этими границами формулы экстраполируют.
-  // Поэтому и главная оценка, и отдельные формулы показываются в пределах шкалы:
-  // «52,9 лет обучения» рядом с итогом «17+» только сбивает с толку.
-  const onScale = (value: number, digits: number) =>
-    value < MIN ? `<${MIN}` : value >= MAX ? `${MAX}+` : fmt(value, digits);
+  // Поэтому и главная оценка, и отдельные формулы показываются в пределах шкалы.
   let average = $derived(ix?.average.value ?? 0);
   let score = $derived(onScale(average, 1));
   let years = $derived(plural(Math.min(Math.max(Math.round(average), MIN), MAX), ['год', 'года', 'лет']));
@@ -110,6 +117,8 @@
   {#if tooShort}
     <p class="warning">Текст слишком короткий: оценка надёжна от 2 предложений и 10 слов.</p>
   {/if}
+
+  <Compare was={baseline} now={measurement} {edited} {onremember} />
 
   <LongSentences {text} {sentences} {onselect} />
 
