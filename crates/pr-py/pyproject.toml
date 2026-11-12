@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "plainrussian"
-version = "0.1.0"
+version = "0.2.0"
 description = "Оценка простоты (читаемости) русскоязычных текстов"
 readme = "README.md"
 license = "CC0-1.0"
