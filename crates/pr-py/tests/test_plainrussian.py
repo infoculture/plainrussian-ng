@@ -47,7 +47,7 @@ def test_measure_legacy_keeps_old_api_shape():
 
 
 def test_version():
-    assert plainrussian.__version__ == "0.1.0"
+    assert plainrussian.__version__ == "0.2.0"
 
 
 def test_check_clarity():

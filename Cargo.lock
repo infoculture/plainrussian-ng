@@ -1201,7 +1201,7 @@ dependencies = [
 
 [[package]]
 name = "pr-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "encoding_rs",
@@ -1212,7 +1212,7 @@ dependencies = [
 
 [[package]]
 name = "pr-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rumorph",
  "serde",
@@ -1222,7 +1222,7 @@ dependencies = [
 
 [[package]]
 name = "pr-py"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pr-core",
  "pyo3",
@@ -1233,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "pr-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "clap",
@@ -1252,7 +1252,7 @@ dependencies = [
 
 [[package]]
 name = "pr-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pr-core",
  "serde",
@@ -1262,7 +1262,7 @@ dependencies = [
 
 [[package]]
 name = "pr-wasm-clarity"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pr-core",
  "serde_json",
