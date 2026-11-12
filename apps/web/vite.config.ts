@@ -122,7 +122,8 @@ function pwa() {
       globPatterns: ['**/*.{html,js,mjs,css,wasm,svg,png}'],
       maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       // При injectRegister: 'script' плагин сам их не включает: без них новая
-      // версия ждёт, пока закроются все вкладки.
+      // версия ждёт, пока закроются все вкладки. Открытая страница прежней версии
+      // после этого перезагружается: её файлы удалены из кеша (src/lib/update.ts).
       skipWaiting: true,
       clientsClaim: true,
       // Словарь для проверок ясного языка (7 МБ, .gz) не входит в предзагрузку:
