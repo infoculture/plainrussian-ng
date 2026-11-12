@@ -56,28 +56,36 @@ async function send(path: string, req: Request, body?: string, signal?: AbortSig
   return { status: response.status, body: await response.text() };
 }
 
+/** Соединиться не удалось: сообщение для пользователя. Отмену пропускает как есть. */
+function connectionError(e: unknown, req: Request): unknown {
+  if (e instanceof Error && e.name === 'AbortError') return e;
+  // Rust возвращает готовое сообщение строкой.
+  if (isDesktop) return new LlmError(String(e));
+  const p = provider(req.provider);
+  return new LlmError(
+    runsLocally(p, req.baseUrl)
+      ? [`Не удалось соединиться с ${req.baseUrl}. Запущен ли сервер?`, CORS_HINTS[p.id]].filter(Boolean).join(' ')
+      : `Не удалось соединиться с ${p.title}. Проверьте подключение к интернету.`,
+  );
+}
+
+function checkStatus(raw: Raw): void {
+  if (raw.status >= 200 && raw.status < 300) return;
+  if (raw.status === 401) throw new LlmError('Ключ API не подошёл.');
+  if (raw.status === 403) throw new LlmError('У ключа нет доступа к этой модели.');
+  if (raw.status === 404) throw new LlmError('Модель или адрес API не найдены.');
+  if (raw.status === 429) throw new LlmError('Превышен лимит запросов. Подождите и повторите.');
+  throw new LlmError(`Ошибка API (${raw.status}): ${raw.body.slice(0, 300)}`);
+}
+
 async function call(path: string, req: Request, body?: string, signal?: AbortSignal): Promise<unknown> {
   let raw: Raw;
   try {
     raw = await send(path, req, body, signal);
   } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') throw e;
-    // Rust возвращает готовое сообщение строкой.
-    if (isDesktop) throw new LlmError(String(e));
-    const p = provider(req.provider);
-    throw new LlmError(
-      runsLocally(p, req.baseUrl)
-        ? [`Не удалось соединиться с ${req.baseUrl}. Запущен ли сервер?`, CORS_HINTS[p.id]].filter(Boolean).join(' ')
-        : `Не удалось соединиться с ${p.title}. Проверьте подключение к интернету.`,
-    );
+    throw connectionError(e, req);
   }
-  if (raw.status < 200 || raw.status >= 300) {
-    if (raw.status === 401) throw new LlmError('Ключ API не подошёл.');
-    if (raw.status === 403) throw new LlmError('У ключа нет доступа к этой модели.');
-    if (raw.status === 404) throw new LlmError('Модель или адрес API не найдены.');
-    if (raw.status === 429) throw new LlmError('Превышен лимит запросов. Подождите и повторите.');
-    throw new LlmError(`Ошибка API (${raw.status}): ${raw.body.slice(0, 300)}`);
-  }
+  checkStatus(raw);
   try {
     return JSON.parse(raw.body);
   } catch {
@@ -93,10 +101,23 @@ const Completion = z.object({
 
 /** Запрос к /chat/completions; возвращает текст ответа модели. */
 async function complete(body: Record<string, unknown>, req: Request, signal?: AbortSignal): Promise<string> {
-  const data = await call('/chat/completions', req, JSON.stringify(body), signal);
-  const completion = Completion.safeParse(data);
-  if (!completion.success) throw new LlmError('Сервер вернул неожиданный ответ.');
-  const choice = completion.data.choices[0];
+  return content(await call('/chat/completions', req, JSON.stringify(body), signal));
+}
+
+/** Текст ответа из JSON, который вернул сервер вместо потока. */
+function completion(json: string): string {
+  try {
+    return content(JSON.parse(json));
+  } catch (e) {
+    if (e instanceof LlmError) throw e;
+    throw new LlmError('Сервер вернул не JSON. Проверьте адрес API.');
+  }
+}
+
+function content(data: unknown): string {
+  const parsed = Completion.safeParse(data);
+  if (!parsed.success) throw new LlmError('Сервер вернул неожиданный ответ.');
+  const choice = parsed.data.choices[0];
   if (choice.finish_reason === 'length') {
     throw new LlmError('Ответ модели оборвался: текст слишком длинный для этой модели.');
   }
@@ -119,8 +140,17 @@ export async function assessWithOpenAI(text: string, req: Request, signal?: Abor
   return parseAssessment(await complete(body, req, signal));
 }
 
-/** Переписывание: ответ обычным текстом, без схемы — её понимают не все локальные модели. */
-export async function rewriteWithOpenAI(prompt: Prompt, req: Request, signal?: AbortSignal): Promise<string> {
+/**
+ * Переписывание: ответ обычным текстом, без схемы — её понимают не все локальные модели.
+ * В браузере ответ приходит потоком и `onAnswer` получает написанное к этому моменту.
+ * Запросы настольного приложения делает Rust, и там ответ приходит целиком.
+ */
+export async function rewriteWithOpenAI(
+  prompt: Prompt,
+  req: Request,
+  signal?: AbortSignal,
+  onAnswer?: (answer: string) => void,
+): Promise<string> {
   const body = {
     model: req.model,
     messages: [
@@ -128,7 +158,77 @@ export async function rewriteWithOpenAI(prompt: Prompt, req: Request, signal?: A
       { role: 'user', content: prompt.user },
     ],
   };
+  if (onAnswer && !isDesktop && req.provider !== 'gigachat') return streamChat(body, req, onAnswer, signal);
   return complete(body, req, signal);
+}
+
+const Chunk = z.object({
+  choices: z
+    .array(z.object({ delta: z.object({ content: z.string().nullish() }).nullish(), finish_reason: z.string().nullish() }))
+    .optional(),
+  error: z.object({ message: z.string() }).optional(),
+});
+
+/** Потоковый ответ /chat/completions: события SSE с кусками текста, как у OpenAI. */
+async function streamChat(
+  body: Record<string, unknown>,
+  req: Request,
+  onAnswer: (answer: string) => void,
+  signal?: AbortSignal,
+): Promise<string> {
+  const url = `${req.baseUrl.trim().replace(/\/$/, '')}/chat/completions`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: headers(req, true),
+      body: JSON.stringify({ ...body, stream: true }),
+      signal,
+    });
+  } catch (e) {
+    throw connectionError(e, req);
+  }
+  if (!response.ok || !response.body) {
+    checkStatus({ status: response.status, body: await response.text() });
+    throw new LlmError('Сервер вернул пустой ответ.');
+  }
+  // Сервер, который не умеет поток, отвечает обычным JSON.
+  if (!(response.headers.get('content-type') ?? '').includes('text/event-stream')) {
+    return completion(await response.text());
+  }
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  let answer = '';
+  let finish: string | null | undefined;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      // Строки-комментарии («: OPENROUTER PROCESSING») и пустые пропускаем.
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') continue;
+      let parsed;
+      try {
+        parsed = Chunk.safeParse(JSON.parse(data));
+      } catch {
+        continue;
+      }
+      if (!parsed.success) continue;
+      if (parsed.data.error) throw new LlmError(`Ошибка API: ${parsed.data.error.message.slice(0, 300)}`);
+      const choice = parsed.data.choices?.[0];
+      if (choice?.delta?.content) {
+        answer += choice.delta.content;
+        onAnswer(answer);
+      }
+      if (choice?.finish_reason) finish = choice.finish_reason;
+    }
+  }
+  if (finish === 'length') throw new LlmError('Ответ модели оборвался: текст слишком длинный для этой модели.');
+  return answer;
 }
 
 /** Модели без строгого режима иногда оборачивают JSON в ```json … ```. */

@@ -23,6 +23,8 @@
     seconds: number;
     /** Числа исходника, которых нет в черновике. */
     missing: string[];
+    /** Модель ещё пишет: какая часть из скольких. null, когда черновик готов. */
+    progress: { part: number; parts: number } | null;
   }
 </script>
 
@@ -46,10 +48,19 @@
     onapply: () => void;
     /** Переписать черновик ещё проще. */
     onagain: () => void;
+    /** Отбросить черновик, а недописанный — перестать ждать. */
     ondiscard: () => void;
   } = $props();
 
   const fmt = (n: number) => n.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+
+  let draftArea = $state<HTMLTextAreaElement>();
+  // Пока модель пишет, поле черновика держится на последней строке.
+  $effect(() => {
+    if (!draft.progress || !draftArea) return;
+    void draft.result;
+    draftArea.scrollTop = draftArea.scrollHeight;
+  });
 
   let measurement = $derived(draft.after?.measurement ?? null);
   // Подходит ли черновик аудитории, для которой его писали. Допуск — ошибка формул.
@@ -62,7 +73,12 @@
 
 <section class="llm-card" aria-labelledby="draft-title" aria-busy={draft.after === null}>
   <h2 id="draft-title">Черновик {draft.fragment ? 'фрагмента' : 'текста'}: {draft.goal.title.toLowerCase()}</h2>
-  {#if !measurement}
+  {#if draft.progress}
+    <p class="note">
+      {draft.title} пишет черновик{#if draft.progress.parts > 1}: часть {draft.progress.part} из
+        {draft.progress.parts}{/if}…{#if !draft.result} Длинный текст модель может писать минуту и дольше.{/if}
+    </p>
+  {:else if !measurement}
     <p class="note">Считаю оценку черновика…</p>
   {:else}
     {#if draft.before}
@@ -85,10 +101,15 @@
     </label>
     <label>
       Черновик
-      <textarea readonly value={draft.result}></textarea>
+      <textarea bind:this={draftArea} readonly value={draft.result}></textarea>
     </label>
   </div>
 
+  {#if draft.progress}
+    <div class="toolbar">
+      <button type="button" class="secondary" onclick={ondiscard}>Отменить</button>
+    </div>
+  {:else}
   {#if draft.missing.length}
     <p class="warning">
       В черновике нет чисел из исходного текста: {draft.missing.join(', ')}. Проверьте, не потерялись ли
@@ -111,4 +132,5 @@
     {draft.title} · {draft.model} · {fmt(draft.seconds)} с. Модель может исказить смысл: прочитайте черновик,
     прежде чем заменять.
   </p>
+  {/if}
 </section>

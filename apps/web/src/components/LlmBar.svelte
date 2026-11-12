@@ -3,12 +3,19 @@
   // для аудитории. Результаты — карточками там же, чтобы не искать их внизу страницы.
   import { clarityLabel } from '../lib/clarity';
   import { LlmError, assess, destination, provider, rewrite, runsLocally } from '../lib/llm/providers.ts';
-  import { MAX_REWRITE_CHARS, missingNumbers, rewritePrompt, type Hints } from '../lib/llm/rewrite.ts';
+  import {
+    MAX_REWRITE_CHARS,
+    MAX_REWRITE_PARTS,
+    missingNumbers,
+    rewritePrompt,
+    splitForRewrite,
+    type Hints,
+  } from '../lib/llm/rewrite.ts';
   import { toRequest } from '../lib/llm/settings.ts';
   import { isConfigured, llm } from '../lib/llm/store.svelte.ts';
-  import { LONG_SENTENCE, charCount } from '../lib/segments';
+  import { LONG_SENTENCE, charCount, plural } from '../lib/segments';
   import { AUDIENCES, audience, setAudience } from '../lib/target.svelte.ts';
-  import type { Analysis, ClarityReport, Measurement } from '../lib/types';
+  import type { Analysis, ClarityReport } from '../lib/types';
   import LlmAssessment, { type AssessmentResult } from './LlmAssessment.svelte';
   import RewriteDraft, { type Draft } from './RewriteDraft.svelte';
 
@@ -19,6 +26,7 @@
     selection,
     formula,
     measure,
+    onselect,
     onapply,
     onrestore,
   }: {
@@ -32,6 +40,8 @@
     formula: number | null;
     /** Оценка другого текста (черновика); оценку поля ввода не трогает. */
     measure: (text: string) => Promise<Analysis | null>;
+    /** Выделить фрагмент текущего текста в поле ввода. */
+    onselect: (start: number, end: number) => void;
     /** Заменить текст поля. `range` — где в нём переписанный фрагмент; null, если переписан весь текст. */
     onapply: (next: string, range: { start: number; end: number } | null) => void;
     /** Вернуть текст, который был до замены. */
@@ -42,6 +52,8 @@
   const TOP_SENTENCES = 5;
   const TOP_FINDINGS = 15;
   const SNIPPET = 80;
+  /** Как часто обновлять черновик, пока модель его пишет, мс. */
+  const REDRAW = 100;
 
   let p = $derived(provider(llm.provider));
   let ps = $derived(llm.providers[llm.provider]);
@@ -67,13 +79,20 @@
     return { ...r, fragment: r.start !== whole.start || r.end !== whole.end };
   });
   let size = $derived(range.end - range.start);
-  let tooLong = $derived(size > MAX_REWRITE_CHARS);
+  let sentences = $derived(analysis?.text === text ? analysis.result.annotation.sentences : []);
+  // Длинный текст уходит модели кусками по абзацам; null — его не разрезать.
+  let parts = $derived(
+    size > MAX_REWRITE_CHARS ? (splitForRewrite(text, range.start, range.end, sentences)?.length ?? null) : 1,
+  );
+  let partsWord = $derived(parts === null ? '' : `${parts} ${plural(parts, ['запрос', 'запроса', 'запросов'])}`);
 
   let rewriting = $state<AbortController | null>(null);
   let assessing = $state<AbortController | null>(null);
   let error = $state('');
   // Черновик и оценка заменяются только целиком: в них разметка длинного текста.
   let draft = $state.raw<Draft | null>(null);
+  // Готовый черновик до нового запроса: к нему возвращаемся при отмене или ошибке.
+  let beforeRewrite: Draft | null = null;
   let assessment = $state.raw<AssessmentResult | null>(null);
   // Последняя замена: пока текст не правили, её можно отменить.
   let applied = $state<{ before: string; after: string } | null>(null);
@@ -86,9 +105,9 @@
     return t.length > SNIPPET ? `${t.slice(0, SNIPPET).trimEnd()}…` : t;
   }
 
-  /** Что нашли формулы и проверки ясного языка в части `source` от start до end. */
+  /** Что нашли формулы и проверки ясного языка в части `doc` от start до end. */
   function hints(
-    source: string,
+    doc: string,
     a: Analysis | null,
     c: ClarityReport | null,
     start: number,
@@ -100,7 +119,7 @@
       .filter((s) => s.words >= LONG_SENTENCE && inside(s))
       .sort((x, y) => y.words - x.words || x.start - y.start)
       .slice(0, TOP_SENTENCES)
-      .map((s) => ({ text: snippet(source.slice(s.start, s.end)), words: s.words }));
+      .map((s) => ({ text: snippet(doc.slice(s.start, s.end)), words: s.words }));
     const seen = new Set<string>();
     const findings: Hints['findings'] = [];
     for (const f of c?.findings ?? []) {
@@ -121,19 +140,73 @@
 
   type Base = Pick<Draft, 'source' | 'start' | 'end' | 'fragment' | 'original' | 'before'>;
 
-  /** Просит модель переписать `input` и ставит черновик на место части base.start…base.end. */
-  async function requestRewrite(base: Base, input: string, found: Hints) {
+  /**
+   * Переписывает часть `doc` от from до to и ставит результат черновиком на место
+   * base.start…base.end исходного текста. `doc` — исходный текст или прежний черновик
+   * («Ещё проще»), `a` и `c` — его разметка. Длинная часть уходит модели кусками по
+   * абзацам, по очереди; пока модель пишет, черновик показывается по мере ответа.
+   */
+  async function requestRewrite(
+    base: Base,
+    doc: string,
+    a: Analysis | null,
+    c: ClarityReport | null,
+    from: number,
+    to: number,
+  ) {
     error = '';
-    const prompt = rewritePrompt(input, goal, found);
+    const chunks = splitForRewrite(doc, from, to, a?.annotation.sentences ?? []);
+    if (!chunks || chunks.length > MAX_REWRITE_PARTS) {
+      error = !chunks
+        ? `В тексте есть предложение длиннее ${charCount(MAX_REWRITE_CHARS)}: выделите и перепишите его отдельно.`
+        : `Текст слишком длинный: больше ${MAX_REWRITE_PARTS} запросов. Выделите часть текста.`;
+      return;
+    }
     const controller = new AbortController();
     rewriting = controller;
+    beforeRewrite = draft?.progress ? beforeRewrite : draft;
     const started = performance.now();
     // Подписи берутся до запроса: пока он идёт, в настройках могут выбрать другое.
     const meta = { goal, title: p.title, model: ps.model };
+    const results: string[] = [];
+    // Куски черновика, а между ними — разделители абзацев из `doc`.
+    const join = (done: string[]) =>
+      done.map((part, i) => (i === 0 ? '' : doc.slice(chunks[i - 1].end, chunks[i].start)) + part).join('');
+
+    // Черновик, который пишется, обновляется не чаще раза в REDRAW мс.
+    let shown = { partial: '', part: 0 };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const redraw = () => {
+      timer = undefined;
+      if (rewriting !== controller) return;
+      draft = {
+        ...base,
+        ...meta,
+        result: join([...results, shown.partial]),
+        next: '',
+        after: null,
+        seconds: 0,
+        missing: [],
+        progress: { part: shown.part + 1, parts: chunks.length },
+      };
+    };
+    const show = (partial: string, part: number) => {
+      shown = { partial, part };
+      timer ??= setTimeout(redraw, REDRAW);
+    };
+
     try {
-      const result = await rewrite(prompt, toRequest(llm), controller.signal);
-      // В настольном приложении запрос не прерывается, отменённый ответ просто отбрасываем.
-      if (controller.signal.aborted) return;
+      for (const [i, chunk] of chunks.entries()) {
+        const fragment = base.fragment || chunks.length > 1;
+        const prompt = rewritePrompt(doc.slice(chunk.start, chunk.end), goal, hints(doc, a, c, chunk.start, chunk.end, fragment));
+        show('', i);
+        const result = await rewrite(prompt, toRequest(llm), controller.signal, (partial) => show(partial, i));
+        // В настольном приложении запрос не прерывается, отменённый ответ просто отбрасываем.
+        if (controller.signal.aborted) return;
+        results.push(result);
+      }
+      clearTimeout(timer);
+      const result = join(results);
       const next = base.source.slice(0, base.start) + result + base.source.slice(base.end);
       draft = {
         ...base,
@@ -143,37 +216,59 @@
         after: null,
         seconds: (performance.now() - started) / 1000,
         missing: missingNumbers(base.original, result),
+        progress: null,
       };
+      beforeRewrite = null;
       const measured = await measure(next);
       // Пока считалось, черновик могли отбросить или заменить новым.
       if (measured && draft?.next === next) draft = { ...draft, after: measured };
     } catch (e) {
-      if (!controller.signal.aborted) error = explain(e);
+      clearTimeout(timer);
+      if (!controller.signal.aborted) {
+        const where = chunks.length > 1 ? `Часть ${results.length + 1} из ${chunks.length}. ` : '';
+        error = where + explain(e);
+        draft = beforeRewrite;
+        beforeRewrite = null;
+      }
     } finally {
       if (rewriting === controller) rewriting = null;
     }
   }
 
-  function runRewrite() {
+  /** Переписать часть текста поля от start до end. */
+  function rewriteRange(start: number, end: number) {
     const source = text;
-    const { start, end, fragment } = range;
     const a = analysis?.text === source ? analysis.result : null;
     const c = clarity?.text === source ? clarity.report : null;
-    const original = source.slice(start, end);
-    const before: Measurement | null = a?.measurement ?? null;
-    requestRewrite({ source, start, end, fragment, original, before }, original, hints(source, a, c, start, end, fragment));
+    const fragment = start !== whole.start || end !== whole.end;
+    const base = { source, start, end, fragment, original: source.slice(start, end), before: a?.measurement ?? null };
+    requestRewrite(base, source, a, c, start, end);
   }
 
   /** Переписать черновик ещё проще. Сравнение и числа — по-прежнему с исходным текстом. */
   function rewriteAgain() {
-    if (!draft) return;
+    if (!draft || draft.progress) return;
     const { source, start, end, fragment, original, before, result, next, after } = draft;
-    const found = hints(next, after, null, start, start + result.length, fragment);
-    requestRewrite({ source, start, end, fragment, original, before }, result, found);
+    requestRewrite({ source, start, end, fragment, original, before }, next, after, null, start, start + result.length);
+  }
+
+  /**
+   * Переписать фрагмент, который нашла оценка LLM. Берутся целые предложения: иначе
+   * склейка с соседним текстом могла бы порвать фразу.
+   */
+  function rewriteQuote(start: number, end: number) {
+    const covering = sentences.filter((s) => s.end > start && s.start < end);
+    if (covering.length) {
+      start = Math.min(start, covering[0].start);
+      end = Math.max(end, covering[covering.length - 1].end);
+    }
+    const r = trimmed(start, end);
+    onselect(r.start, r.end);
+    rewriteRange(r.start, r.end);
   }
 
   function apply() {
-    if (!draft || draft.source !== text) return;
+    if (!draft || draft.progress || draft.source !== text) return;
     const d = draft;
     applied = { before: d.source, after: d.next };
     draft = null;
@@ -205,11 +300,18 @@
     }
   }
 
+  function cancelRewrite() {
+    rewriting?.abort();
+    rewriting = null;
+    // Недописанный черновик уступает место прежнему, готовому.
+    if (draft?.progress) draft = beforeRewrite;
+    beforeRewrite = null;
+  }
+
   /** Запрос из настольного приложения не прерывается: панель просто перестаёт его ждать. */
   function cancel() {
-    rewriting?.abort();
+    cancelRewrite();
     assessing?.abort();
-    rewriting = null;
     assessing = null;
   }
 </script>
@@ -230,7 +332,11 @@
           {/each}
         </select>
       </label>
-      <button type="button" onclick={runRewrite} disabled={size === 0 || tooLong || rewriting !== null}>
+      <button
+        type="button"
+        onclick={() => rewriteRange(range.start, range.end)}
+        disabled={size === 0 || parts === null || parts > MAX_REWRITE_PARTS || rewriting !== null}
+      >
         {rewriting ? 'Переписываю…' : range.fragment ? 'Переписать выделенное' : 'Переписать текст'}
       </button>
       <button type="button" class="secondary" onclick={runAssess} disabled={!text.trim() || assessing !== null}>
@@ -253,9 +359,17 @@
       {/if}
       <a href="#settings">Изменить</a>
     </p>
-    {#if tooLong}
+    {#if parts === null}
       <p class="warning">
-        За один раз можно переписать до {charCount(MAX_REWRITE_CHARS)}. Выделите часть текста в поле ввода.
+        В тексте есть предложение длиннее {charCount(MAX_REWRITE_CHARS)}: выделите и перепишите его отдельно.
+      </p>
+    {:else if parts > MAX_REWRITE_PARTS}
+      <p class="warning">
+        Текст слишком длинный для переписывания: нужно больше {MAX_REWRITE_PARTS} запросов. Выделите часть текста.
+      </p>
+    {:else if parts > 1}
+      <p class="note">
+        Текст длиннее {charCount(MAX_REWRITE_CHARS)}: модель перепишет его по абзацам, это {partsWord} подряд.
       </p>
     {/if}
   {/if}
@@ -269,8 +383,26 @@
 </div>
 
 {#if draft}
-  <RewriteDraft {draft} {stale} busy={rewriting !== null} onapply={apply} onagain={rewriteAgain} ondiscard={() => (draft = null)} />
+  <RewriteDraft
+    {draft}
+    {stale}
+    busy={rewriting !== null}
+    onapply={apply}
+    onagain={rewriteAgain}
+    ondiscard={() => {
+      if (draft?.progress) cancelRewrite();
+      else draft = null;
+    }}
+  />
 {/if}
 {#if assessment}
-  <LlmAssessment result={assessment} {text} {formula} onclose={() => (assessment = null)} />
+  <LlmAssessment
+    result={assessment}
+    {text}
+    {formula}
+    busy={rewriting !== null}
+    onshow={onselect}
+    onrewrite={rewriteQuote}
+    onclose={() => (assessment = null)}
+  />
 {/if}

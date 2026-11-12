@@ -66,6 +66,11 @@
     // Смещения относятся к тексту, по которому построена разметка. Если текст уже
     // правили, а новая разметка ещё считается, они указывают не туда.
     if (analysis?.text !== text) return;
+    selectText(start, end);
+  }
+
+  /** Выделяет фрагмент текущего текста поля. */
+  function selectText(start: number, end: number) {
     selectRange(textarea, start, end);
     trackSelection();
   }
@@ -85,8 +90,7 @@
     // Переписанный фрагмент выделяется, чтобы было видно, что изменилось.
     if (range) {
       await tick();
-      selectRange(textarea, range.start, range.end);
-      trackSelection();
+      selectText(range.start, range.end);
     }
   }
 
@@ -288,6 +292,7 @@
       {selection}
       {formula}
       measure={(draft) => analyzer.measure(draft)}
+      onselect={selectText}
       onapply={applyRewrite}
       onrestore={(previous) => (text = previous)}
     />

@@ -6,6 +6,14 @@ import type { Audience } from '../target.svelte.ts';
 /** Самый длинный текст для одного запроса, знаков: ответ модели не меньше запроса. */
 export const MAX_REWRITE_CHARS = 30_000;
 
+/** Больше частей за раз не отправляем: каждая — отдельный платный запрос. */
+export const MAX_REWRITE_PARTS = 20;
+
+export interface Span {
+  start: number;
+  end: number;
+}
+
 export interface Prompt {
   system: string;
   user: string;
@@ -99,6 +107,68 @@ export function extractRewrite(answer: string): string | null {
   }
   body = body.trim();
   return body || null;
+}
+
+/**
+ * Начало ответа, пока модель его пишет: текст после <text> (и до </text>, если тег
+ * уже закрыт). Пока <text> не появился, показывать нечего.
+ */
+export function partialRewrite(answer: string): string {
+  const open = answer.indexOf('<text>');
+  if (open === -1) return '';
+  const close = answer.lastIndexOf('</text>');
+  const body = answer.slice(open + '<text>'.length, close > open ? close : undefined);
+  // Хвост может оказаться началом закрывающего тега: «</te».
+  return body.replace(/<\/?t?e?x?t?$/, '').trimStart();
+}
+
+/**
+ * Делит часть текста start…end на куски не длиннее `max` для отдельных запросов: по
+ * абзацам, а слишком длинный абзац — по предложениям (`sentences` — их границы в том же
+ * тексте; если их нет, предложения ищутся по знакам конца). Соседние абзацы собираются
+ * в один кусок, пока он помещается. null, если одно предложение длиннее `max`.
+ */
+export function splitForRewrite(
+  text: string,
+  start: number,
+  end: number,
+  sentences: Span[],
+  max = MAX_REWRITE_CHARS,
+): Span[] | null {
+  if (end - start <= max) return [{ start, end }];
+  const pieces: Span[] = [];
+  for (const paragraph of spans(text, start, end, /\n[ \t]*\n\s*/g)) {
+    if (paragraph.end - paragraph.start <= max) {
+      pieces.push(paragraph);
+      continue;
+    }
+    const inside = sentences.filter((s) => s.start >= paragraph.start && s.end <= paragraph.end);
+    const parts = inside.length ? inside : spans(text, paragraph.start, paragraph.end, /(?<=[.!?…])\s+/g);
+    for (const s of parts) {
+      if (s.end - s.start > max) return null;
+      pieces.push(s);
+    }
+  }
+  const chunks: Span[] = [];
+  for (const piece of pieces) {
+    const last = chunks.at(-1);
+    if (last && piece.end - last.start <= max) last.end = piece.end;
+    else chunks.push({ ...piece });
+  }
+  return chunks;
+}
+
+/** Куски текста между совпадениями `separator`, без пустых. */
+function spans(text: string, start: number, end: number, separator: RegExp): Span[] {
+  const part = text.slice(start, end);
+  const found: Span[] = [];
+  let from = 0;
+  for (const m of part.matchAll(separator)) {
+    if (m.index > from) found.push({ start: start + from, end: start + m.index });
+    from = m.index + m[0].length;
+  }
+  if (from < part.length) found.push({ start: start + from, end });
+  return found;
 }
 
 /** Числа целиком, с разделителями разрядов и частями дат и времени: «1 000», «01.02.2024», «2,5». */

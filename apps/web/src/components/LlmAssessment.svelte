@@ -20,6 +20,9 @@
     result,
     text,
     formula,
+    busy,
+    onshow,
+    onrewrite,
     onclose,
   }: {
     result: AssessmentResult;
@@ -27,6 +30,12 @@
     text: string;
     /** Оценка формулами того же текста — для сравнения. */
     formula: number | null;
+    /** Модель уже переписывает текст. */
+    busy: boolean;
+    /** Выделить фрагмент в поле ввода; смещения — в текущем тексте. */
+    onshow: (start: number, end: number) => void;
+    /** Переписать фрагмент; смещения — в текущем тексте. */
+    onrewrite: (start: number, end: number) => void;
     onclose: () => void;
   } = $props();
 
@@ -56,6 +65,8 @@
     <h3>Что мешает понять текст</h3>
     <ol class="issues">
       {#each result.assessment.issues as issue, i (i)}
+        <!-- Цитату ищем в тексте, который в поле сейчас: его могли поправить после оценки. -->
+        {@const at = issue.quote.trim() ? text.indexOf(issue.quote) : -1}
         <li>
           <span class="kind">{ISSUE_KINDS[issue.kind]}</span>
           <blockquote>{issue.quote}</blockquote>
@@ -64,6 +75,16 @@
           {/if}
           <p>{issue.comment}</p>
           {#if issue.suggestion}<p class="suggestion">Проще: {issue.suggestion}</p>{/if}
+          {#if at !== -1}
+            <p class="issue-actions">
+              <button type="button" class="link" onclick={() => onshow(at, at + issue.quote.length)}>
+                Показать в тексте
+              </button>
+              <button type="button" class="link" disabled={busy} onclick={() => onrewrite(at, at + issue.quote.length)}>
+                Переписать это место
+              </button>
+            </p>
+          {/if}
         </li>
       {/each}
     </ol>

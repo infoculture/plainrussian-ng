@@ -541,6 +541,12 @@ mark {
   margin: 16px 0 8px;
 }
 
+.issue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
 .draft-columns {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

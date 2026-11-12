@@ -72,23 +72,35 @@ export async function assessWithAnthropic(
 
 /**
  * Переписанный текст длиннее оценки, поэтому запрос потоковый: SDK не держит
- * долгий запрос с большим max_tokens без потока. Ответ собирается целиком.
+ * долгий запрос с большим max_tokens без потока. `onAnswer` получает ответ,
+ * написанный к этому моменту; возвращается ответ целиком.
  */
-export async function rewriteWithAnthropic(prompt: Prompt, req: Request, signal?: AbortSignal): Promise<string> {
+export async function rewriteWithAnthropic(
+  prompt: Prompt,
+  req: Request,
+  signal?: AbortSignal,
+  onAnswer?: (answer: string) => void,
+): Promise<string> {
   try {
-    const response = await client(req)
-      .beta.messages.stream(
-        {
-          model: req.model,
-          max_tokens: 64000,
-          ...fallback(req.model),
-          output_config: effort(req.model),
-          system: prompt.system,
-          messages: [{ role: 'user', content: prompt.user }],
-        },
-        { signal },
-      )
-      .finalMessage();
+    const stream = client(req).beta.messages.stream(
+      {
+        model: req.model,
+        max_tokens: 64000,
+        ...fallback(req.model),
+        output_config: effort(req.model),
+        system: prompt.system,
+        messages: [{ role: 'user', content: prompt.user }],
+      },
+      { signal },
+    );
+    let answer = '';
+    if (onAnswer) {
+      stream.on('text', (delta) => {
+        answer += delta;
+        onAnswer(answer);
+      });
+    }
+    const response = await stream.finalMessage();
     checkStop(response.stop_reason, 'переписывать');
     return response.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
   } catch (e) {

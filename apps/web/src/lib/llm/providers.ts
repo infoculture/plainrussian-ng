@@ -4,7 +4,7 @@
 // приложении OpenAI-совместимые запросы делает Rust, поэтому годится любой адрес,
 // а GigaChat доступен только там: у его API нет CORS.
 import type { Assessment } from './assessment.ts';
-import { extractRewrite, type Prompt } from './rewrite.ts';
+import { extractRewrite, partialRewrite, type Prompt } from './rewrite.ts';
 import { isDesktop } from '../platform.ts';
 
 export type ProviderId = 'anthropic' | 'openai' | 'openrouter' | 'gigachat' | 'ollama' | 'lmstudio' | 'custom';
@@ -187,16 +187,25 @@ export async function assess(text: string, req: Request, signal?: AbortSignal): 
   return assessWithOpenAI(text, req, signal);
 }
 
-/** Переписывает текст по запросу из rewritePrompt; возвращает только новый текст. */
-export async function rewrite(prompt: Prompt, req: Request, signal?: AbortSignal): Promise<string> {
+/**
+ * Переписывает текст по запросу из rewritePrompt; возвращает только новый текст.
+ * `onText` получает уже написанную часть, если провайдер отдаёт ответ потоком.
+ */
+export async function rewrite(
+  prompt: Prompt,
+  req: Request,
+  signal?: AbortSignal,
+  onText?: (partial: string) => void,
+): Promise<string> {
   const p = checkRequest(req);
+  const onAnswer = onText && ((answer: string) => onText(partialRewrite(answer)));
   let answer: string;
   if (p.kind === 'anthropic') {
     const { rewriteWithAnthropic } = await import('./anthropic.ts');
-    answer = await rewriteWithAnthropic(prompt, req, signal);
+    answer = await rewriteWithAnthropic(prompt, req, signal, onAnswer);
   } else {
     const { rewriteWithOpenAI } = await import('./openai.ts');
-    answer = await rewriteWithOpenAI(prompt, req, signal);
+    answer = await rewriteWithOpenAI(prompt, req, signal, onAnswer);
   }
   const text = extractRewrite(answer);
   if (text === null) throw new LlmError('Модель не вернула переписанный текст. Попробуйте ещё раз или другую модель.');
