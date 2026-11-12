@@ -21,15 +21,18 @@
 Запуск из корня репозитория:
     python3 calibration/fit.py --version 2026.1
 
-Новый корпус (calibration/graded, см. build_corpus.py) подбирается с ключом --graded:
-    python3 calibration/fit.py --version 2027.1 --graded
+Новый корпус (calibration/graded, см. build_corpus.py) подбирается с ключом --graded,
+школьная шкала — так:
+    python3 calibration/fit.py --version school-2026.1 --graded --balance
 
 Вход — sources.csv, fragments.csv и features.jsonl из calibration/graded. Коэффициенты
 подбираются на фрагментах с split=fit. Проверка — исключение по источникам: формула
 подбирается без всех фрагментов источника и проверяется на них, иначе соседние
 фрагменты одной книги занижают ошибку. Фрагменты с split=test в подборе не участвуют,
 ошибка на них считается отдельно. Для сравнения на тех же фрагментах считается ошибка
-прежней калибровки (--baseline).
+прежней калибровки (--baseline). С ключом --balance каждый класс весит в подборе одинаково,
+сколько бы фрагментов в нём ни было: иначе подбор подстраивается под самые частые классы.
+Отчёт пишется в calibration/<версия>.md, REPORT.md старого корпуса не меняется.
 """
 
 import argparse
@@ -85,13 +88,14 @@ def errors(y, pred):
     return err
 
 
-def fit_lad(X, y, iterations=500):
-    """Минимум средней абсолютной ошибки с учётом потолка (IRLS)."""
-    theta = np.linalg.lstsq(X, y, rcond=None)[0]
+def fit_lad(X, y, iterations=500, weights=None):
+    """Минимум средней абсолютной ошибки с учётом потолка (IRLS); weights — веса текстов."""
+    w0 = np.ones(len(y)) if weights is None else weights
+    theta = np.linalg.lstsq(X * np.sqrt(w0)[:, None], y * np.sqrt(w0), rcond=None)[0]
     for _ in range(iterations):
         pred = X @ theta
         active = ~((y >= CEILING) & (pred >= CEILING))
-        w = np.where(active, 1.0 / np.maximum(np.abs(y - pred), 1e-6), 0.0)
+        w = np.where(active, w0 / np.maximum(np.abs(y - pred), 1e-6), 0.0)
         sw = np.sqrt(w)
         new = np.linalg.lstsq(X * sw[:, None], y * sw, rcond=None)[0]
         if np.allclose(new, theta, atol=1e-10):
@@ -107,13 +111,21 @@ def signed(y, pred):
     return diff
 
 
-def loo_predictions(X, y, groups):
+def loo_predictions(X, y, groups, weights=None):
     """Прогноз для каждого текста формулой, подобранной без текстов его группы."""
     pred = np.empty_like(y)
     for group in np.unique(groups):
         held = groups == group
-        pred[held] = X[held] @ fit_lad(X[~held], y[~held])
+        w = None if weights is None else weights[~held]
+        pred[held] = X[held] @ fit_lad(X[~held], y[~held], weights=w)
     return pred
+
+
+def balanced(y):
+    """Веса, при которых каждый уровень весит одинаково; в среднем вес равен 1."""
+    levels, inverse, n = np.unique(y, return_inverse=True, return_counts=True)
+    w = 1.0 / n[inverse]
+    return w * len(y) / w.sum()
 
 
 def summary(err):
@@ -129,13 +141,20 @@ def main(argv=None):
                              "и features.jsonl, по умолчанию calibration/graded")
     parser.add_argument("--baseline", default=BASELINE,
                         help="версия калибровки для сравнения на новом корпусе")
-    parser.add_argument("--out", type=Path, default=ROOT, help="куда писать <версия>.json и REPORT.md")
+    parser.add_argument("--balance", action="store_true",
+                        help="с --graded: каждый класс весит в подборе одинаково")
+    parser.add_argument("--out", type=Path, default=ROOT, help="куда писать <версия>.json и отчёт")
     args = parser.parse_args(argv)
+    if args.balance and not args.graded:
+        parser.error("--balance работает только с --graded")
 
     result = fit_graded(args) if args.graded else fit_legacy(args)
     out = args.out / f"{args.version}.json"
     out.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    (write_graded_report if args.graded else write_report)(result, args.out / "REPORT.md")
+    if args.graded:
+        write_graded_report(result, args.out / f"{args.version}.md")
+    else:
+        write_report(result, args.out / "REPORT.md")
     print(json.dumps(result["formulas"], ensure_ascii=False, indent=1))
     print("average", result["average"])
 
@@ -210,22 +229,24 @@ def fit_graded(args):
         parts[split] = ([counts for counts, _ in chosen], [source for _, source in chosen],
                         np.array([float(source["grade"]) for _, source in chosen]))
     counts, sources, y = parts["fit"]
-    test_counts, _, test_y = parts["test"]
+    test_counts, test_sources, test_y = parts["test"]
     groups = np.array([source["source_id"] for source in sources])
     if len(set(groups)) < 2:
         sys.exit("для подбора нужны фрагменты хотя бы двух источников с split=fit")
+    weights = balanced(y) if args.balance else None
 
     result = {"version": args.version, "created": datetime.date.today().isoformat(),
-              "corpus": "graded", "texts": len(y), "sources": len(set(groups)),
+              "corpus": "graded", "texts": len(y), "sources": len(set(groups)), "balanced": args.balance,
               "test_texts": len(test_y), "ceiling": CEILING, "baseline": args.baseline, "formulas": {}}
     preds = {"fit": [], "loo": [], "baseline": []}
     test_preds = {"test": [], "baseline_test": []}
     for key, (title, names) in FORMULAS.items():
         X = np.array([features(c, key) for c in counts])
-        coef = [round(float(v), DIGITS) for v in fit_lad(X, y)]
+        coef = [round(float(v), DIGITS) for v in fit_lad(X, y, weights=weights)]
         old = baseline[key]["coef"]
         entry = {"title": title, "features": names, "coef": coef}
-        pred = {"fit": X @ np.array(coef), "loo": loo_predictions(X, y, groups), "baseline": X @ np.array(old)}
+        pred = {"fit": X @ np.array(coef), "loo": loo_predictions(X, y, groups, weights),
+                "baseline": X @ np.array(old)}
         for name, p in pred.items():
             preds[name].append(p)
             entry[name] = summary(errors(y, p))
@@ -246,6 +267,12 @@ def fit_graded(args):
     checked = {"loo": mean["loo"], "baseline": mean["baseline"]}
     result["levels"] = breakdown([int(v) for v in y], groups, y, checked)
     result["source_types"] = breakdown([s["source_type"] for s in sources], groups, y, checked)
+    result["genres"] = breakdown([s["genre"] for s in sources], groups, y, checked)
+    if len(test_y):
+        held = {"loo": np.mean(test_preds["test"], axis=0), "baseline": np.mean(test_preds["baseline_test"], axis=0)}
+        test_groups = np.array([s["source_id"] for s in test_sources])
+        result["test_groups"] = breakdown([f"{s['source_type']}, {s['grade']} кл." for s in test_sources],
+                                          test_groups, test_y, held)
     return result
 
 
@@ -266,6 +293,8 @@ def write_graded_report(r, path):
         "и проверяется на них. Это честная оценка на новых текстах.",
         f"Калибровка {r['baseline']} — прежние коэффициенты на тех же фрагментах.",
     ]
+    if r.get("balanced"):
+        lines.append("Каждый класс весил в подборе одинаково (`--balance`); ошибки — без весов, по фрагментам.")
     if test:
         lines.append(f"Отложенные — {r['test_texts']} фрагментов с split=test, в подборе их нет.")
     head = [f"Калибровка {r['baseline']}", "Новая, проверка", "Новая, на обучении", "Новая, макс. в проверке"]
@@ -278,13 +307,17 @@ def write_graded_report(r, path):
         if test:
             cells += [v["baseline_test"]["mae"], v["test"]["mae"]]
         lines.append(f"| {v['title']} | " + " | ".join(str(c) for c in cells) + " |")
-    for title, first, rows in (("По уровням", "Уровень", r["levels"]),
-                               ("По типам источников", "Тип", r["source_types"])):
+    tables = [("По уровням", "Уровень", r["levels"], "в проверке по источникам"),
+              ("По типам источников", "Тип", r["source_types"], "в проверке по источникам"),
+              ("По жанрам", "Жанр", r.get("genres", []), "в проверке по источникам")]
+    if r.get("test_groups"):
+        tables.append(("Отложенные тексты", "Тип и класс", r["test_groups"], "на отложенных текстах"))
+    for title, first, rows, where in tables:
         lines += [
             "",
             f"## {title}",
             "",
-            "Среднее пяти формул в проверке по источникам. Смещение — средняя разница оценки",
+            f"Среднее пяти формул {where}. Смещение — средняя разница оценки",
             "и уровня: плюс значит, что оценка завышена.",
             "",
             f"| {first} | Источников | Фрагментов | Ошибка {r['baseline']} | Смещение {r['baseline']} "

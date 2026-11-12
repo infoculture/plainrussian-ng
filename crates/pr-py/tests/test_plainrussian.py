@@ -13,6 +13,8 @@ def test_measure():
     assert m["calibration"]["version"] == "2026.1"
     assert 0 < m["indexes"]["average"]["value"] < 30
     assert set(m["indexes"]) == {"average", "fk", "cl", "smog", "dc", "ari"}
+    assert m["school_calibration"]["version"] == "school-2026.1"
+    assert set(m["school"]) == {"value", "grade"}
 
 
 def test_text_without_words():

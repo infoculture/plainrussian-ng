@@ -38,6 +38,9 @@ async def test_measure_readability():
     assert data["grade_years_raw"] >= data["grade_years"]
     assert set(data["formulas"]) == {"Flesch-Kincaid", "Coleman-Liau", "SMOG", "Dale-Chall", "ARI"}
     assert data["calibration"] == "2026.1"
+    assert 1 <= data["school_grade"] <= 11
+    assert data["school_level"].endswith("класс") or data["school_level"].startswith("сложнее")
+    assert data["school_calibration"] == "school-2026.1"
 
 
 @pytest.mark.anyio

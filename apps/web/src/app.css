@@ -334,6 +334,11 @@ textarea {
   font-weight: 600;
 }
 
+/* Школьная шкала: вторая оценка под главной. */
+.school {
+  margin: 16px 0 4px;
+}
+
 .verdict.ok {
   color: var(--ok);
 }

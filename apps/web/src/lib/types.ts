@@ -46,6 +46,10 @@ export interface Measurement {
   /** null, если в тексте нет слов. */
   features: Features | null;
   indexes: Indexes | null;
+  /** Коэффициенты школьной шкалы. */
+  school_calibration: Calibration;
+  /** Школьная шкала: value — класс, grade — подпись; null, если в тексте нет слов. */
+  school: Index | null;
 }
 
 /** Смещения — в единицах UTF-16, подходят для `String.slice`. */

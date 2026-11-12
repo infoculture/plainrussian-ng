@@ -47,6 +47,7 @@ fn text_from_stdin() {
     let stdout = String::from_utf8(out.stdout).unwrap();
     assert!(stdout.starts_with("-: "), "{stdout}");
     assert!(stdout.contains(" года обучения — "), "{stdout}");
+    assert!(stdout.contains("; по школьной шкале — "), "{stdout}");
     assert!(stdout.contains("слов 10, предложений 3"), "{stdout}");
 }
 
@@ -78,6 +79,12 @@ fn csv_for_a_directory_including_windows_1251() {
     let lines: Vec<&str> = stdout.lines().collect();
     assert_eq!(lines.len(), 3, "{stdout}");
     assert!(lines[0].starts_with("path,average,grade,"));
+    assert!(
+        lines[0].ends_with(",calibration,school,school_calibration"),
+        "{}",
+        lines[0]
+    );
+    assert!(lines[1].ends_with(",school-2026.1"), "{}", lines[1]);
     assert!(lines[1].contains("a.txt,"));
     assert!(lines[2].contains("b.md,"));
     // Тот же текст в windows-1251 даёт ту же оценку.
