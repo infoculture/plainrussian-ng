@@ -1,4 +1,5 @@
 import type { Analysis, ClarityReport } from './types';
+import { reloadAfterFailedLoad } from './update';
 import type { Request, Response } from './worker';
 
 type Kind = 'analyze' | 'clarity' | 'measure';
@@ -24,7 +25,10 @@ export class Analyzer {
 
   private spawn(): Worker {
     const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+    // Ответил ли поток хоть раз: ошибка до первого ответа — значит, он не загрузился.
+    let answered = false;
     worker.onmessage = (event: MessageEvent<Response>) => {
+      answered = true;
       const response = event.data;
       const waiter = this.pending.get(response.id);
       this.pending.delete(response.id);
@@ -42,6 +46,8 @@ export class Analyzer {
       event.preventDefault();
       worker.terminate();
       if (this.worker === worker) this.worker = null;
+      // Файла потока нет: сайт обновился, а страница осталась прежней версии.
+      if (!answered && reloadAfterFailedLoad()) return;
       const error = new Error(event.message || 'поток с ядром оценки остановился');
       const waiters = [...this.pending.values()];
       this.pending.clear();
